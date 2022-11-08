@@ -1,22 +1,28 @@
 #include "AutoStabilizerROSBridge.h"
+#include <tf/transform_broadcaster.h>
 
 AutoStabilizerROSBridge::AutoStabilizerROSBridge(RTC::Manager* manager):
   RTC::DataFlowComponentBase(manager),
   m_steppableRegionOut_("steppableRegionOut", m_steppableRegion_),
   m_landingHeightOut_("landingHeightOut", m_landingHeight_),
-  m_landingTargetIn_("landingTargetIn", m_landingTarget_)
+  m_wheelVelOut_("wheelVelOut", m_wheelVel_),
+  m_landingTargetIn_("landingTargetIn", m_landingTarget_),
+  m_legOdomIn_("legOdomIn", m_legOdom_)
 {
 }
 
 RTC::ReturnCode_t AutoStabilizerROSBridge::onInitialize(){
   addOutPort("steppableRegionOut", m_steppableRegionOut_);
   addOutPort("landingHeightOut", m_landingHeightOut_);
+  addOutPort("wheelVelOut", m_wheelVelOut_);
   addInPort("landingTargetIn", m_landingTargetIn_);
+  addInPort("legOdomIn", m_legOdomIn_);
 
   ros::NodeHandle pnh("~");
 
   steppable_region_sub_ = pnh.subscribe("steppable_region", 1, &AutoStabilizerROSBridge::onSteppableRegionCB, this);
   landing_height_sub_ = pnh.subscribe("landing_height", 1, &AutoStabilizerROSBridge::onLandingHeightCB, this);
+  wheel_vel_sub_ = pnh.subscribe("wheel_vel", 1, &AutoStabilizerROSBridge::onWheelVelCB, this);
   landing_target_pub_ = pnh.advertise<auto_stabilizer_msgs::LandingPosition>("landing_target", 1);
 
   return RTC::RTC_OK;
@@ -35,6 +41,26 @@ RTC::ReturnCode_t AutoStabilizerROSBridge::onExecute(RTC::UniqueId ec_id){
       landingTarget.z = m_landingTarget_.data.z;
       landingTarget.l_r = m_landingTarget_.data.l_r;
       landing_target_pub_.publish(landingTarget);
+    }
+    catch(const std::runtime_error &e)
+      {
+        ROS_ERROR_STREAM("[" << getInstanceName() << "] " << e.what());
+      }
+  }
+
+  if(this->m_legOdomIn_.isNew()){
+    try {
+      m_legOdomIn_.read();
+      static tf::TransformBroadcaster br;
+      tf::Transform transform;
+      transform.setOrigin(tf::Vector3(m_legOdom_.data[0], m_legOdom_.data[1], m_legOdom_.data[2]));
+      tf::Quaternion q(m_legOdom_.data[3], m_legOdom_.data[4], m_legOdom_.data[5], m_legOdom_.data[6]);
+      transform.setRotation(q);
+      if (m_legOdom_.data[7] == 0) {
+        br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "rleg_end_coords", "leg_odom"));
+      } else {
+        br.sendTransform(tf::StampedTransform(transform, ros::Time::now(), "lleg_end_coords", "leg_odom"));
+      }
     }
     catch(const std::runtime_error &e)
       {
@@ -69,6 +95,12 @@ void AutoStabilizerROSBridge::onLandingHeightCB(const auto_stabilizer_msgs::Land
   m_landingHeight_.data.nz = msg->nz;
   m_landingHeight_.data.l_r = msg->l_r;
   m_landingHeightOut_.write();
+}
+
+void AutoStabilizerROSBridge::onWheelVelCB(const std_msgs::Float32::ConstPtr& msg) {
+  m_wheelVel_.data = msg->data;
+  m_wheelVelOut_.write();
+  std::cout << "ros_bridge wheel vel: " << msg->data << std::endl;
 }
 
 static const char* AutoStabilizerROSBridge_spec[] = {

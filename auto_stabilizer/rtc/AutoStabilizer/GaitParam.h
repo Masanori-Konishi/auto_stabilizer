@@ -58,6 +58,8 @@ public:
   double relLandingHeight = -1e15; // generate frame. 現在の遊脚のfootstepNodesList[0]のdstCoordsのZ. -1e10未満なら、relLandingHeightとrelLandingNormalは無視される. footStepNodesListsの次のnodeに移るたびにFootStepGeneratorによって-1e15に上書きされる.
   cnoid::Vector3 relLandingNormal = cnoid::Vector3::UnitZ(); // generate frame. 現在の遊脚のfootstepNodesList[0]のdstCoordsのZ軸の方向. ノルムは常に1
 public:
+  cnoid::Position legOdom = cnoid::Position::Identity();
+  int legOdomSupportLeg = RLEG;
   // AutoStabilizerの中で計算更新される.
 
   // refToGenFrameConverter
@@ -85,6 +87,8 @@ public:
 
   // CmdVelGenerator
   cnoid::Vector3 cmdVel = cnoid::Vector3::Zero(); // X[m/s] Y[m/s] theta[rad/s]. Z軸はgenerate frame鉛直. support leg frame. 不連続に変化する
+
+  double wheelVel = 0;//車輪速度
 
   // FootStepGenerator
   class FootStepNodes {
@@ -145,7 +149,7 @@ public:
   class DebugData {
   public:
     std::vector<cnoid::Vector3> strideLimitationHull = std::vector<cnoid::Vector3>(); // generate frame. overwritableStrideLimitationHullの範囲内の着地位置(自己干渉・IKの考慮が含まれる). Z成分には0を入れる
-    std::vector<std::vector<cnoid::Vector3> > capturableHulls = std::vector<std::vector<cnoid::Vector3> >(); // generate frame. 要素数と順番はcandidatesに対応
+    std::vector<cnoid::Vector3> reachableCaptureRegionHull = std::vector<cnoid::Vector3>();
     std::vector<double> cpViewerLog = std::vector<double>(37, 0.0);
   };
   DebugData debugData; // デバッグ用のOutPortから出力するためのデータ. AutoStabilizer内の制御処理では使われることは無い. そのため、モード遷移や初期化等の処理にはあまり注意を払わなくて良い
@@ -205,6 +209,9 @@ public:
     steppableHeight.clear();
     relLandingHeight = -1e15;
     relLandingNormal = cnoid::Vector3::UnitZ();
+
+    legOdom = cnoid::Position::Identity();
+    legOdomSupportLeg = RLEG;
   }
 
   // 毎周期呼ばれる. 内部の補間器をdtだけ進める

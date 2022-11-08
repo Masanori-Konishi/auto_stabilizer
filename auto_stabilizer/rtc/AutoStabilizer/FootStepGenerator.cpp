@@ -1,6 +1,7 @@
 #include "FootStepGenerator.h"
 #include "MathUtil.h"
 #include <cnoid/EigenUtil>
+#include <opencv2/imgproc.hpp>
 
 bool FootStepGenerator::initFootStepNodesList(const GaitParam& gaitParam,
                                               std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase) const{
@@ -195,7 +196,7 @@ bool FootStepGenerator::goStop(const GaitParam& gaitParam,
 
 // FootStepNodesListをdtすすめる
 bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const double& dt, bool useActState,
-                                              std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase, double& relLandingHeight) const{
+                                              std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase, double& relLandingHeight, double& wheelVel) const{
   std::vector<GaitParam::FootStepNodes> footstepNodesList = gaitParam.footstepNodesList;
   std::vector<bool> prevSupportPhase = gaitParam.prevSupportPhase;
   double elapsedTime = gaitParam.elapsedTime;
@@ -222,7 +223,7 @@ bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const 
 
     // footstepNodesList[1]へ進む
     this->goNextFootStepNodesList(gaitParam, dt,
-                                  footstepNodesList, srcCoords, dstCoordsOrg, remainTimeOrg, swingState, elapsedTime, relLandingHeight);
+                                  footstepNodesList, srcCoords, dstCoordsOrg, remainTimeOrg, swingState, elapsedTime, relLandingHeight, wheelVel);
   }
 
   o_footstepNodesList = footstepNodesList;
@@ -277,7 +278,7 @@ bool FootStepGenerator::calcFootSteps(const GaitParam& gaitParam, const double& 
 }
 
 bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, double dt,
-                                                std::vector<GaitParam::FootStepNodes>& footstepNodesList, std::vector<cnoid::Position>& srcCoords, std::vector<cnoid::Position>& dstCoordsOrg, double& remainTimeOrg, std::vector<GaitParam::SwingState_enum>& swingState, double& elapsedTime, double& relLandingHeight) const{
+                                                std::vector<GaitParam::FootStepNodes>& footstepNodesList, std::vector<cnoid::Position>& srcCoords, std::vector<cnoid::Position>& dstCoordsOrg, double& remainTimeOrg, std::vector<GaitParam::SwingState_enum>& swingState, double& elapsedTime, double& relLandingHeight, double& wheelVel) const{
   // 今のgenCoordsとdstCoordsが異なるなら、将来のstepの位置姿勢をそれに合わせてずらす.
   // early touch downまたはlate touch downが発生していると、今のgenCoordsとdstCoordsが異なる.
   //   今のgenCoordsが正しい地形を表していることが期待されるので、将来のstepの位置姿勢をgenCoordsにあわせてずらしたくなる
@@ -290,12 +291,18 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
 
   //   footstepNodesList[1:]で一回でも遊脚になった以降は、位置とYawをずらす. footstepNodesList[1:]で最初に遊脚になる脚があるならその反対の脚の偏差にあわせてずらす. そうでないなら両脚の中心(+-defaultTranslatePos)の偏差にあわせてずらす
   //   footstepNodesList[1]が支持脚なら、遊脚になるまで、位置姿勢をその足の今の偏差にあわせてずらす.
+
+  if ((!footstepNodesList[0].isSupportPhase[RLEG] || !footstepNodesList[0].isSupportPhase[LLEG]) && (footstepNodesList[1].isSupportPhase[RLEG] && footstepNodesList[1].isSupportPhase[LLEG])) {//片足->両足
+    wheelVel = 0;
+  }
+
   for(int i=1;i<footstepNodesList.size();i++){
     if(footstepNodesList[i].isSupportPhase[RLEG] && !footstepNodesList[i].isSupportPhase[LLEG]){ // LLEGが次に最初に遊脚になる
       cnoid::Position origin = mathutil::orientCoordToAxis(footstepNodesList[i-1].dstCoords[RLEG], cnoid::Vector3::UnitZ()); // generate frame. 一つ前のRLEGの位置を基準にずらす
       cnoid::Position offsetedPos = mathutil::orientCoordToAxis(gaitParam.genCoords[RLEG].value() * footstepNodesList[0].dstCoords[RLEG].inverse() * footstepNodesList[i-1].dstCoords[RLEG], cnoid::Vector3::UnitZ()); // generate frame. 一つ前のRLEGはこの位置にずれている
       cnoid::Position transform = offsetedPos * origin.inverse(); // generate frame
       if(transform.translation().norm() < this->contactModificationThreshold) transform = cnoid::Position::Identity(); // ズレが大きい場合のみずらす
+      //transform.translation() -= destFootstepOffset;
       this->transformFutureSteps(footstepNodesList, i, transform); // footstepNodesList[1:]で一回でも遊脚になった以降の脚の、位置とYawをずらす
       break;
     }else if(footstepNodesList[i].isSupportPhase[LLEG] && !footstepNodesList[i].isSupportPhase[RLEG]){ // RLEGが次に最初に遊脚になる
@@ -303,6 +310,7 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
       cnoid::Position offsetedPos = mathutil::orientCoordToAxis(gaitParam.genCoords[LLEG].value() * footstepNodesList[0].dstCoords[LLEG].inverse() * footstepNodesList[i-1].dstCoords[LLEG], cnoid::Vector3::UnitZ()); // generate frame. 一つ前のLLEGはこの位置にずれている
       cnoid::Position transform = offsetedPos * origin.inverse(); // generate frame
       if(transform.translation().norm() < this->contactModificationThreshold) transform = cnoid::Position::Identity(); // ズレが大きい場合のみずらす
+      //transform.translation() -= destFootstepOffset;
       this->transformFutureSteps(footstepNodesList, i, transform); // footstepNodesList[1:]で一回でも遊脚になった以降の脚の、位置とYawをずらす
       break;
     }else if(!footstepNodesList[i].isSupportPhase[LLEG] && !footstepNodesList[i].isSupportPhase[RLEG]){ // RLEGとLLEG同時に次に最初に遊脚になる
@@ -472,6 +480,7 @@ inline std::ostream &operator<<(std::ostream &os, const std::vector<std::pair<st
 void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, // input & output
                                         GaitParam::DebugData& debugData, //for Log
                                         const GaitParam& gaitParam) const{
+  // TODO gaitParam.lの処理がちゃんと考えられていない
   // 現在片足支持期で、次が両足支持期であるときのみ、行う
   if(!(footstepNodesList.size() > 1 &&
        (footstepNodesList[1].isSupportPhase[RLEG] && footstepNodesList[1].isSupportPhase[LLEG]) &&
@@ -500,264 +509,585 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   // dx = w ( x - z - l)
   cnoid::Vector3 actDCM = gaitParam.actCog + gaitParam.actCogVel.value() / gaitParam.omega;
 
-  /*
-    capturable: ある時刻t(overwritableMinTime<=t<=overwritableMaxTime)が存在し、時刻tに着地すれば転倒しないような着地位置.
-    reachable: ある時刻t(overwritableMinTime<=t<=overwritableMaxTime)が存在し、今の脚の位置からの距離が時刻tに着地することができる範囲である着地位置.
-    strideLimitation: overwritableStrideLimitationHullの範囲内の着地位置(自己干渉・IKの考慮が含まれる).
-    steppable: 着地可能な地形であるような着地位置
+  double minTime = std::max(this->overwritableMinTime, this->overwritableMinStepTime - gaitParam.elapsedTime); // 次indexまでの残り時間がthis->overwritableMinTimeを下回るようには着地時間修正を行わない. 現index開始時からの経過時間がthis->overwritableStepMinTimeを下回るようには着地時間修正を行わない.
+  minTime = std::min(minTime, footstepNodesList[0].remainTime); // もともと下回っている場合には、その値を下回るようには着地時刻修正を行わない.
+  double maxTime = std::max(this->overwritableMaxStepTime - gaitParam.elapsedTime, minTime); // 現index開始時からの経過時間がthis->overwritableStepMaxTimeを上回るようには着地時間修正を行わない.
+  maxTime = std::max(maxTime, footstepNodesList[0].remainTime); // もともと上回っている場合には、その>値を上回るようには着地時刻修正を行わない.
+  maxTime += footstepNodesList[1].remainTime;
 
-    * capturableとreachableの積集合を考えるときは、各時刻のtごとで考える
-
-    優先度(小さいほうが高い)
-    1. strideLimitation: 絶対満たす
-    1. reachable: 絶対満たす
-    2. steppable: 達成不可の場合や、着地可能領域が与えられていない場合は、考慮しない
-    3. capturable: 達成不可の場合は、時間が速い方優先(次の一歩に期待). 複数ある場合は可能な限り近い位置. (角運動量 TODO)
-    4. もとの着地位置(dstCoordsOrg): 達成不可の場合は、各hullの中の最も近い位置をそれぞれ求めて、着地位置修正前の進行方向(遊脚のsrcCoordsからの方向)に最も進むもの優先 (支持脚からの方向にすると、横歩き時に後ろ足の方向が逆になってしまう)
-    5. もとの着地時刻(remainTimeOrg): 達成不可の場合は、可能な限り近い時刻
-   */
-
-  std::vector<std::pair<std::vector<cnoid::Vector3>, double> > candidates; // first: generate frame. 着地領域(convex Hull). second: 着地時刻. サイズが0になることはない
-
-  // 1. strideLimitation と reachable
-  {
-    std::vector<double> samplingTimes;
-    samplingTimes.push_back(footstepNodesList[0].remainTime);
-    double minTime = std::max(this->overwritableMinTime, this->overwritableMinStepTime - gaitParam.elapsedTime); // 次indexまでの残り時間がthis->overwritableMinTimeを下回るようには着地時間修正を行わない. 現index開始時からの経過時間がthis->overwritableStepMinTimeを下回るようには着地時間修正を行わない.
-    minTime = std::min(minTime, footstepNodesList[0].remainTime); // もともと下回っている場合には、その値を下回るようには着地時刻修正を行わない.
-    double maxTime = std::max(this->overwritableMaxStepTime - gaitParam.elapsedTime, minTime); // 現index開始時からの経過時間がthis->overwritableStepMaxTimeを上回るようには着地時間修正を行わない.
-    maxTime = std::max(maxTime, footstepNodesList[0].remainTime); // もともと上回っている場合には、その値を上回るようには着地時刻修正を行わない.
-    int sample = std::max(10, int((maxTime - minTime) / 0.1));
-    for(int i=0;i<=sample;i++) {
-      double t = minTime + (maxTime - minTime) / sample * i;
-      if(t != footstepNodesList[0].remainTime) samplingTimes.push_back(t);
-    }
-
-    std::vector<cnoid::Vector3> strideLimitationHull; // generate frame. overwritableStrideLimitationHullの範囲内の着地位置(自己干渉・IKの考慮が含まれる). Z成分には0を入れる
-    for(int i=0;i<this->overwritableStrideLimitationHull[swingLeg].size();i++){
-      cnoid::Vector3 p = supportPoseHorizontal * this->overwritableStrideLimitationHull[swingLeg][i];
-      strideLimitationHull.emplace_back(p[0],p[1],0.0);
-    }
-
-    for(int i=0;i<samplingTimes.size();i++){
-      double t = samplingTimes[i];
-      std::vector<cnoid::Vector3> reachableHull; // generate frame. 今の脚の位置からの距離が時刻tに着地することができる範囲. Z成分には0を入れる
-      int segment = 8;
-      for(int j=0; j < segment; j++){
-        reachableHull.emplace_back(swingPose.translation()[0] + this->overwritableMaxSwingVelocity * t * std::cos(2 * M_PI / segment * j),
-                                   swingPose.translation()[1] + this->overwritableMaxSwingVelocity * t * std::sin(2 * M_PI / segment * j),
-                                   0.0);
-      }
-      std::vector<cnoid::Vector3> hull = mathutil::calcIntersectConvexHull(reachableHull, strideLimitationHull);
-      if(hull.size() > 0) candidates.emplace_back(hull, t);
-    }
-
-    if(candidates.size() == 0) candidates.emplace_back(std::vector<cnoid::Vector3>{footstepNodesList[0].dstCoords[swingLeg].translation()}, footstepNodesList[0].remainTime); // まず起こらないと思うが念の為
-
-    debugData.strideLimitationHull = strideLimitationHull; // for debeg
+  std::vector<cnoid::Vector3> strideLimitationHull; // generate frame. overwritableStrideLimitationHullの範囲内の着地位置(自己干渉・IKの考慮が含まれる). Z成分には0を入れる
+  for(int i=0;i<this->overwritableStrideLimitationHull[swingLeg].size();i++){
+    cnoid::Vector3 p = supportPoseHorizontal * this->overwritableStrideLimitationHull[swingLeg][i];
+    strideLimitationHull.emplace_back(p[0],p[1],0.0);
   }
-  // std::cerr << "strideLimitation と reachable" << std::endl;
-  // std::cerr << candidates << std::endl;
+  debugData.strideLimitationHull = strideLimitationHull; // for debeg
 
-  // 2. steppable: 達成不可の場合や、着地可能領域が与えられていない場合は、考慮しない
-  // TODO. 高低差と時間の関係
-  {
-    std::vector<std::pair<std::vector<cnoid::Vector3>, double> > steppableHulls; // generate frame. first: visionに基づく着地可能領域. Z成分には0を入れる.  second: 高さ
-    for(int i=0;i<gaitParam.steppableRegion.size();i++){
-      // 空のHullは除外
-      // overwritableMaxLandingHeightとoverwritableMinLandingHeightを満たさないregionは除外.
-      if(gaitParam.steppableRegion[i].size() > 0 &&
-         (gaitParam.steppableHeight[i] - supportPose.translation()[2] <= this->overwritableMaxLandingHeight) &&
-         (gaitParam.steppableHeight[i] - supportPose.translation()[2] >= this->overwritableMinLandingHeight)){
-        std::vector<cnoid::Vector3> steppableHull;
-        steppableHull.reserve(gaitParam.steppableRegion[i].size());
-        for(int j=0;j<gaitParam.steppableRegion[i].size();j++) steppableHull.emplace_back(gaitParam.steppableRegion[i][j][0],gaitParam.steppableRegion[i][j][1],0.0);
-        steppableHulls.emplace_back(steppableHull, gaitParam.steppableHeight[i]);
-      }
-    }
+  std::vector<cnoid::Vector3> reachableCaptureRegionHull = std::vector<cnoid::Vector3>();
+  calcReachableCaptureRegion(reachableCaptureRegionHull, actDCM, footstepNodesList[0], gaitParam.genCoords, gaitParam.omega, minTime, maxTime, gaitParam.wheelVel);
+  debugData.reachableCaptureRegionHull = reachableCaptureRegionHull; // for debug
 
-    std::vector<std::pair<std::vector<cnoid::Vector3>, double> > nextCandidates;
-    for(int i=0;i<candidates.size();i++){
-      for(int j=0;j<steppableHulls.size();j++){
-        // overwritableMaxGroundZVelocityを満たさないregionは除外
-        if(std::abs(steppableHulls[j].second - gaitParam.genCoords[swingLeg].getGoal().translation()[2]) > 0.2 && candidates[i].second < 0.8) continue; // TODO
-        if(std::abs(steppableHulls[j].second - gaitParam.srcCoords[swingLeg].translation()[2]) > (gaitParam.elapsedTime + candidates[i].second) * this->overwritableMaxSrcGroundZVelocity) continue;
-        std::vector<cnoid::Vector3> hull = mathutil::calcIntersectConvexHull(candidates[i].first, steppableHulls[j].first);
-        if(hull.size() > 0) nextCandidates.emplace_back(hull, candidates[i].second);
-      }
-    }
-    if(nextCandidates.size() > 0) candidates = nextCandidates;
-    // nextCandidates.size() == 0の場合は、達成不可の場合や、着地可能領域が与えられていない場合なので、candidateの絞り込みを行わない
-  }
-  // std::cerr << "steppable" << std::endl;
-  // std::cerr << candidates << std::endl;
-
-  // 3. capturable: 達成不可の場合は、時間が速い方優先(次の一歩に期待). 複数ある場合は可能な限り近い位置. (角運動量 TODO)
-  // 次の両足支持期終了時に入るケースでもOKにしたい
-  if (this->safeLegHull[supportLeg].size() == 4) { // for log
-    for(int i=0;i<this->safeLegHull[supportLeg].size();i++){
-      cnoid::Vector3 zmp = supportPose * this->safeLegHull[supportLeg][i];// generate frame
-      debugData.cpViewerLog[i*2+0] = zmp[0];
-      debugData.cpViewerLog[i*2+1] = zmp[1];
-    }
-  }
-  {
-    std::vector<std::vector<cnoid::Vector3> > capturableHulls; // 要素数と順番はcandidatesに対応
-    for(int i=0;i<candidates.size();i++){
-      std::vector<cnoid::Vector3> capturableVetices; // generate frame. 時刻tに着地すれば転倒しないような着地位置. Z成分には0を入れる
-      for(double t = candidates[i].second; t <= candidates[i].second + footstepNodesList[1].remainTime; t += footstepNodesList[1].remainTime){ // 接地する瞬間と、次の両足支持期の終了時. 片方だけだと特に横歩きのときに厳しすぎる. refZmpTrajを考えると本当は次の両足支持期の終了時のみを使うのが望ましい. しかし、位置制御成分が大きいロボットだと、力分配しているつもりがなくても接地している足から力を受けるので、接地する瞬間も含めてしまってそんなに問題はない?
-        for(int j=0;j<this->safeLegHull[supportLeg].size();j++){
-          cnoid::Vector3 zmp = supportPose * this->safeLegHull[supportLeg][j];// generate frame
-          cnoid::Vector3 endDCM = (actDCM - zmp - gaitParam.l) * std::exp(gaitParam.omega * t) + zmp + gaitParam.l; // generate frame. 着地時のDCM
-          // for(int k=0;k<this->safeLegHull[swingLeg].size();k++){
-          //   cnoid::Vector3 p = endDCM - gaitParam.l - footstepNodesList[0].dstCoords[swingLeg].linear() * this->safeLegHull[swingLeg][k]; // こっちのほうが厳密であり、着地位置時刻修正を最小限にできるが、ロバストさに欠ける
-          //   capturableVetices.emplace_back(p[0], p[1], 0.0);
-          // }
-          cnoid::Vector3 p = endDCM - gaitParam.l - footstepNodesList[0].dstCoords[swingLeg].linear() * gaitParam.copOffset[swingLeg].value();
-          capturableVetices.emplace_back(p[0], p[1], 0.0);
-        }
-      }
-      capturableHulls.push_back(mathutil::calcConvexHull(capturableVetices)); // generate frame. 時刻tに着地すれば転倒しないような着地位置. Z成分には0を入れる
-    }
-
-    std::vector<std::pair<std::vector<cnoid::Vector3>, double> > nextCandidates;
-    for(int i=0;i<candidates.size();i++){
-      std::vector<cnoid::Vector3> hull = mathutil::calcIntersectConvexHull(candidates[i].first, capturableHulls[i]);
-      if(hull.size() > 0) nextCandidates.emplace_back(hull, candidates[i].second);
-    }
-    if(nextCandidates.size() > 0) candidates = nextCandidates;
-    else{
-      // 達成不可の場合は、時間が速い方優先(次の一歩に期待). 複数ある場合は可能な限り近い位置.
-      //   どうせこの一歩ではバランスがとれないので、位置よりも速く次の一歩に移ることを優先したほうが良い
-      double minTime = std::numeric_limits<double>::max();
-      double minDistance = std::numeric_limits<double>::max();
-      cnoid::Vector3 minp;
-      for(int i=0;i<candidates.size();i++){
-        if(candidates[i].second <= minTime){
-          std::vector<cnoid::Vector3> p, q;
-          double distance = mathutil::calcNearestPointOfTwoHull(candidates[i].first, capturableHulls[i], p, q); // candidates[i].first, capturableHulls[i]は重なっていない・接していない
-          if(candidates[i].second < minTime ||
-             (candidates[i].second == minTime && distance < minDistance)){
-            minTime = candidates[i].second;
-            minDistance = distance;
-            nextCandidates.clear();
-            nextCandidates.emplace_back(p,minTime); // pは、最近傍が点の場合はその点が入っていて、最近傍が線分の場合はその線分の両端点が入っている
-          }else if(candidates[i].second == minTime && distance == minDistance){
-            nextCandidates.emplace_back(p,minTime);
-          }
-        }
-      }
-      candidates = nextCandidates;
-    }
-
-    debugData.capturableHulls = capturableHulls; // for debug
+  std::vector<cnoid::Vector3> genSafeSupportLegHull;
+  genSafeSupportLegHull.resize(this->safeLegHull[supportLeg].size());
+  for (int i=0; i<this->safeLegHull[supportLeg].size(); i++) {
+    genSafeSupportLegHull[i] = supportPoseHorizontal * this->safeLegHull[supportLeg][i] + gaitParam.l;
+    debugData.cpViewerLog[i*2+0] = genSafeSupportLegHull[i][0];
+    debugData.cpViewerLog[i*2+1] = genSafeSupportLegHull[i][1];
   }
 
-  // std::cerr << "capturable" << std::endl;
-  // std::cerr << candidates << std::endl;
+  cnoid::Vector3 destPos = 0.98 * footstepNodesList[0].dstCoords[swingLeg].translation() + 0.02 * gaitParam.dstCoordsOrg[swingLeg].translation();
+  debugData.cpViewerLog[8] = destPos[0];
+  debugData.cpViewerLog[9] = destPos[1];
 
-  // 4. もとの着地位置: 達成不可の場合は、もとの着地位置よりも着地位置修正前の進行方向(遊脚のsrcCoordsからの方向)に進むなかで、もとの着地位置に最も近いもの. それがなければもとの着地位置の最も近いもの. (支持脚からの方向にすると、横歩き時に後ろ足の方向が逆になってしまう)
-  debugData.cpViewerLog[8] = gaitParam.dstCoordsOrg[swingLeg].translation()[0]; //for log もとの目標着地位置
-  debugData.cpViewerLog[9] = gaitParam.dstCoordsOrg[swingLeg].translation()[1]; //for log もとの目標着地位置
-  {
-    std::vector<std::pair<std::vector<cnoid::Vector3>, double> > nextCandidates;
-    for(int i=0;i<candidates.size();i++){
-      if(mathutil::isInsideHull(gaitParam.dstCoordsOrg[swingLeg].translation(), candidates[i].first)){
-        nextCandidates.emplace_back(std::vector<cnoid::Vector3>{gaitParam.dstCoordsOrg[swingLeg].translation()},candidates[i].second);
+  debugData.cpViewerLog[14] = gaitParam.wheelVel;
+
+  cnoid::Vector3 newPos = cnoid::Vector3(1e+10, 1e+10, 0);
+  cnoid::Vector3 newShort = cnoid::Vector3(1e+10, 1e+10, 0);
+  double newTime = 0;
+  double newHeight = footstepNodesList[0].dstCoords[swingLeg].translation()[2];
+
+  for(int i=0;i<std::max(1, (int)(gaitParam.steppableRegion.size()));i++){ //gaitParam.steppableRegion.size()が0のときも１度だけ行う
+    //calc target region
+    std::vector<cnoid::Vector3> tmpSteppableRegion;
+    if (gaitParam.steppableRegion.size() == 0) {
+      tmpSteppableRegion = strideLimitationHull;
+    } else {
+      tmpSteppableRegion = mathutil::calcIntersectConvexHull(gaitParam.steppableRegion[i], strideLimitationHull);
+    }
+    if(tmpSteppableRegion.size() < 3) continue;
+
+    std::vector<cnoid::Vector3> targetRegion;
+    targetRegion = mathutil::calcIntersectConvexHull(tmpSteppableRegion, reachableCaptureRegionHull);
+
+    //modify landing pos
+    cnoid::Vector3 tmpPos;
+    cnoid::Vector3 tmpShort;
+    bool isIn = false;
+    if(targetRegion.size() < 3){ //重なりがない　角運動量補償
+      std::vector<cnoid::Vector3> p, q;
+      double distance = mathutil::calcNearestPointOfTwoHull(tmpSteppableRegion, reachableCaptureRegionHull, p, q);
+      tmpPos = mathutil::calcNearestPointOfHull(destPos, p);
+      tmpShort = (mathutil::calcNearestPointOfHull(tmpPos, q) - tmpPos);
+    } else {
+      isIn = mathutil::isInsideHull(destPos, targetRegion);
+      tmpPos = mathutil::calcNearestPointOfHull(destPos, targetRegion);
+      tmpShort = cnoid::Vector3::Zero();
+    }
+
+    //modify landing time
+    double tmpTime = 0.98 * footstepNodesList[0].remainTime + 0.02 * std::max(0.0, gaitParam.remainTimeOrg - gaitParam.elapsedTime);
+    cnoid::Vector3 a = tmpPos+tmpShort - actDCM;
+    a[2] = 0;
+    a = a / a.norm();
+    std::vector<cnoid::Vector3> line{actDCM + a, actDCM - a};
+    double cpMinTime = -1;
+    double cpMaxTime = -1;
+    std::vector<cnoid::Vector3> intersection = mathutil::calcIntersectConvexHull(genSafeSupportLegHull, line);
+    if (intersection.size() == 0) {
+      std::vector<cnoid::Vector3> tmpP;
+      std::vector<cnoid::Vector3> tmpQ;
+      double distance = mathutil::calcNearestPointOfTwoHull(genSafeSupportLegHull, line, tmpP, tmpQ);
+      if (distance < 0.001) {
+        intersection.push_back(tmpP[0]);
+      } else {
+        std::cout << "iiiiiiiiiiiiiiiiiiiinnnnnnnnnnnnnnnnnnnnnnnnvvvvvvvvvvvvvvvvvvvvvvvvaaaaaaaaaaaaaaaaaaaaaaalllllllllllllllllllllllllliiiiiiiiiiiiiiiiiiiiiiiiiidddddddddddddddddddddd" << std::endl;
       }
     }
-    if(nextCandidates.size() > 0) candidates = nextCandidates;
-    else{ // 達成不可の場合
-      cnoid::Vector3 dir = gaitParam.dstCoordsOrg[swingLeg].translation() - gaitParam.srcCoords[swingLeg].translation(); dir[2] = 0.0;
-      if(dir.norm() > 1e-2){ //着地位置修正前の進行方向(遊脚のsrcCoordsからの方向)に進むなかで、もとの着地位置に最も近いもの
-        dir = dir.normalized();
-        std::vector<cnoid::Vector3> motionDirHull; // generate frame. 進行方向全体を覆うHull
-        {
-          cnoid::Position p = cnoid::Position::Identity();
-          p.translation() = gaitParam.dstCoordsOrg[swingLeg].translation() - dir * 1e-3/*数値誤差に対応するための微小なマージン*/; p.translation()[2] = 0.0;
-          p.linear() = (cnoid::Matrix3() << dir[0], -dir[1], 0.0,
-                                            dir[1], dir[0] , 0.0,
-                                            0.0,    0.0,     1.0).finished();
-          motionDirHull.push_back(p * cnoid::Vector3(0.0, -1e10, 0.0));
-          motionDirHull.push_back(p * cnoid::Vector3(1e10, -1e10, 0.0));
-          motionDirHull.push_back(p * cnoid::Vector3(1e10, 1e10, 0.0));
-          motionDirHull.push_back(p * cnoid::Vector3(0.0, 1e10, 0.0));
-        }
-        double minDistance = std::numeric_limits<double>::max();
-        for(int i=0;i<candidates.size();i++){
-          std::vector<cnoid::Vector3> hull = mathutil::calcIntersectConvexHull(candidates[i].first, motionDirHull);
-          if(hull.size() == 0) continue;
-          cnoid::Vector3 p = mathutil::calcNearestPointOfHull(gaitParam.dstCoordsOrg[swingLeg].translation(), hull);
-          double distance = (p - gaitParam.dstCoordsOrg[swingLeg].translation()).norm();
-          if(distance < minDistance){
-            minDistance = distance;
-            nextCandidates.clear();
-            nextCandidates.emplace_back(std::vector<cnoid::Vector3>{p},candidates[i].second);
-          }else if (distance == minDistance){
-            nextCandidates.emplace_back(std::vector<cnoid::Vector3>{p}, candidates[i].second);
-          }
-        }
+    for (int j = 0; j <intersection.size(); j++) {
+      double tmp = ((tmpPos+tmpShort)[1] - intersection[j][1]) / (actDCM[1] - intersection[j][1]);
+      if (tmp > 0) {
+        tmp = std::log(tmp) / gaitParam.omega;
+      } else {
+        tmp = maxTime; //infinity, maxTimeで打ち切る
       }
-      if(nextCandidates.size() > 0) candidates = nextCandidates;
-      else{ // もとの着地位置に最も近いもの.
-        double minDistance = std::numeric_limits<double>::max();
-        for(int i=0;i<candidates.size();i++){
-          cnoid::Vector3 p = mathutil::calcNearestPointOfHull(gaitParam.dstCoordsOrg[swingLeg].translation(), candidates[i].first);
-          double distance = (p - gaitParam.dstCoordsOrg[swingLeg].translation()).norm();
-          if(distance < minDistance){
-            minDistance = distance;
-            nextCandidates.clear();
-            nextCandidates.emplace_back(std::vector<cnoid::Vector3>{p}, candidates[i].second);
-          }else if (distance == minDistance){
-            nextCandidates.emplace_back(std::vector<cnoid::Vector3>{p}, candidates[i].second);
-          }
-        }
-        candidates = nextCandidates;
-      }
+      if (cpMinTime < 0 || tmp < cpMinTime) cpMinTime = tmp;
+      if (cpMaxTime < 0 || cpMaxTime < tmp) cpMaxTime = tmp;
     }
-  }
+    if (cpMinTime < 0 || cpMaxTime < 0) std::cerr << "invalid intersection" << std::endl;
+    
+    double tmpMinTime = std::max(minTime, cpMinTime);
+    double tmpMaxTime = std::min(maxTime, cpMaxTime);
 
-  // std::cerr << "pos" << std::endl;
-  // std::cerr << candidates << std::endl;
-
-  // 5. もとの着地時刻(remainTimeOrg): 達成不可の場合は、可能な限り近い時刻
-  {
-    std::vector<std::pair<std::vector<cnoid::Vector3>, double> > nextCandidates;
-    double targetRemainTime = gaitParam.remainTimeOrg - gaitParam.elapsedTime; // 負になっているかもしれない.
-    double minDiffTime = std::numeric_limits<double>::max();
-    for(int i=0;i<candidates.size();i++){
-      double diffTime = std::abs(candidates[i].second - targetRemainTime);
-      if(diffTime < minDiffTime){
-        minDiffTime = diffTime;
-        nextCandidates.clear();
-        nextCandidates.push_back(candidates[i]);
-      }else if(diffTime == minDiffTime){
-        minDiffTime = diffTime;
-        nextCandidates.push_back(candidates[i]);
-      }
+    if (tmpMinTime <= tmpMaxTime) {
+      tmpTime = std::min(std::max(tmpMinTime, tmpTime), tmpMaxTime);
+    } else {//なにかおかしい
+      tmpTime = tmpMinTime;
     }
-    candidates = nextCandidates;
+
+    //update newPos
+    if (tmpShort.head(2).norm() < newShort.head(2).norm() || (tmpShort.head(2).norm() == newShort.head(2).norm() && (destPos - tmpPos).head(2).norm() < (destPos - newPos).head(2).norm())) {
+      newTime = tmpTime;
+      newPos = tmpPos;
+      newShort = tmpShort;
+      //newHeight = steppableHeight[i];
+      newHeight = footstepNodesList[0].dstCoords[swingLeg].translation()[2];
+    }
+    if(isIn) break;
   }
 
-  // std::cerr << "time" << std::endl;
-  // std::cerr << candidates << std::endl;
-
-  // 修正を適用
-  cnoid::Vector3 nextDstCoordsPos = candidates[0].first[0]; // generate frame
-  // Z高さはrelLandingHeightから受け取った値を用いる. relLandingHeightが届いていなければ、修正しない.
-  if (gaitParam.swingState[swingLeg] != GaitParam::DOWN_PHASE && gaitParam.relLandingHeight > -1e+10) {
-    nextDstCoordsPos[2] = std::min(supportPose.translation()[2] + this->overwritableMaxLandingHeight, std::max(supportPose.translation()[2] + this->overwritableMinLandingHeight, gaitParam.relLandingHeight));   //landingHeightから受け取った値を用いて着地高さを変更
-  }else{
-    nextDstCoordsPos[2] = footstepNodesList[0].dstCoords[swingLeg].translation()[2];
+  if(newShort.head(2).norm() > 1e+5){
+    std::cerr << "NO SR!!" << std::endl;
+    newPos = destPos;
+    newShort = cnoid::Vector3::Zero();
   }
-  cnoid::Vector3 displacement = nextDstCoordsPos - footstepNodesList[0].dstCoords[swingLeg].translation(); // generate frame
+
+  //landingHeightから受け取った値を用いて着地高さを変更
+  if (gaitParam.relLandingHeight > -1e+10) {
+    newHeight = gaitParam.relLandingHeight;
+  }
+
+  cnoid::Vector3 displacement = cnoid::Vector3(newPos[0], newPos[1], newHeight) - footstepNodesList[0].dstCoords[swingLeg].translation();
+  destFootstepOffset = cnoid::Vector3(newPos[0], newPos[1], 0) - gaitParam.dstCoordsOrg[swingLeg].translation();
+  destFootstepOffset[2] = 0;
+  //displacement[2] = 0.0;
   this->transformFutureSteps(footstepNodesList, 0, displacement);
-  footstepNodesList[0].remainTime = candidates[0].second;
+  footstepNodesList[0].remainTime = newTime;
 
   //landingHeightから受け取った値を用いて着地姿勢を変更
-  if (gaitParam.swingState[swingLeg] != GaitParam::DOWN_PHASE && gaitParam.relLandingHeight > -1e+10) {
-    footstepNodesList[0].dstCoords[swingLeg].linear() = mathutil::orientCoordToAxis(gaitParam.dstCoordsOrg[swingLeg].linear(), gaitParam.relLandingNormal); // dstCoordsを毎周期orientCoordToAxisすると計算誤差でだんだん変にずれてくるので、dstCoordsOrgを使う. この処理以外ではdstCoordsの傾きは変更されないという仮定がある.
+  if (gaitParam.relLandingHeight > -1e+10) {
+    for(int i=0; i<footstepNodesList.size(); i++) {
+      footstepNodesList[i].dstCoords[swingLeg].linear() = mathutil::orientCoordToAxis(gaitParam.dstCoordsOrg[swingLeg].linear(), gaitParam.relLandingNormal);
+    }
   }
+}
+
+
+//void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, // input & output
+//                                        GaitParam::DebugData& debugData, //for Log
+//                                        const GaitParam& gaitParam) const{
+//  // 現在片足支持期で、次が両足支持期であるときのみ、行う
+//  if(!(footstepNodesList.size() > 1 &&
+//       (footstepNodesList[1].isSupportPhase[RLEG] && footstepNodesList[1].isSupportPhase[LLEG]) &&
+//       ((footstepNodesList[0].isSupportPhase[RLEG] && !footstepNodesList[0].isSupportPhase[LLEG]) || (!footstepNodesList[0].isSupportPhase[RLEG] && footstepNodesList[0].isSupportPhase[LLEG]))))
+//     return;
+//
+//  // 次の次に現在の遊脚が再び遊脚になる場合は行わない. CapturePointが遊脚の着地位置に行かないので.
+//  if(footstepNodesList.size() > 2 &&
+//     ((!footstepNodesList[0].isSupportPhase[RLEG] && !footstepNodesList[2].isSupportPhase[RLEG]) || (!footstepNodesList[0].isSupportPhase[LLEG] && !footstepNodesList[2].isSupportPhase[LLEG])))
+//    return;
+//
+//
+//  // 残り時間がoverwritableRemainTimeを下回っている場合、着地位置時間修正を行わない.
+//  if(footstepNodesList[0].remainTime < this->overwritableRemainTime) return;
+//
+//  // one step capturabilityに基づき、footstepNodesList[0]のremainTimeとdstCoordsを修正する.
+//  int swingLeg = footstepNodesList[0].isSupportPhase[RLEG] ? LLEG : RLEG;
+//  int supportLeg = (swingLeg == RLEG) ? LLEG : RLEG;
+//  cnoid::Position swingPose = gaitParam.genCoords[swingLeg].value();
+//  cnoid::Position supportPose = gaitParam.genCoords[supportLeg].value(); // TODO. 支持脚のgenCoordsとdstCoordsが異なることは想定していない
+//  cnoid::Position supportPoseHorizontal = mathutil::orientCoordToAxis(supportPose, cnoid::Vector3::UnitZ());
+//
+//  // stopCurrentPositionが発動しているなら、着地位置時間修正を行っても無駄なので行わない
+//  if(footstepNodesList[0].stopCurrentPosition[swingLeg]) return;
+//
+//  // dx = w ( x - z - l)
+//  cnoid::Vector3 actDCM = gaitParam.actCog + gaitParam.actCogVel.value() / gaitParam.omega;
+//
+//  /*
+//    capturable: ある時刻t(overwritableMinTime<=t<=overwritableMaxTime)が存在し、時刻tに着地すれば転倒しないような着地位置.
+//    reachable: ある時刻t(overwritableMinTime<=t<=overwritableMaxTime)が存在し、今の脚の位置からの距離が時刻tに着地することができる範囲である着地位置.
+//    strideLimitation: overwritableStrideLimitationHullの範囲内の着地位置(自己干渉・IKの考慮が含まれる).
+//    steppable: 着地可能な地形であるような着地位置
+//
+//    * capturableとreachableの積集合を考えるときは、各時刻のtごとで考える
+//
+//    優先度(小さいほうが高い)
+//    1. strideLimitation: 絶対満たす
+//    1. reachable: 絶対満たす
+//    2. steppable: 達成不可の場合や、着地可能領域が与えられていない場合は、考慮しない
+//    3. capturable: 達成不可の場合は、時間が速い方優先(次の一歩に期待). 複数ある場合は可能な限り近い位置. (角運動量 TODO)
+//    4. もとの着地位置(dstCoordsOrg): 達成不可の場合は、各hullの中の最も近い位置をそれぞれ求めて、着地位置修正前の進行方向(遊脚のsrcCoordsからの方向)に最も進むもの優先 (支持脚からの方向にすると、横歩き時に後ろ足の方向が逆になってしまう)
+//    5. もとの着地時刻(remainTimeOrg): 達成不可の場合は、可能な限り近い時刻
+//   */
+//
+//  std::vector<std::pair<std::vector<cnoid::Vector3>, double> > candidates; // first: generate frame. 着地領域(convex Hull). second: 着地時刻. サイズが0になることはない
+//
+//  // 1. strideLimitation と reachable
+//  {
+//    std::vector<double> samplingTimes;
+//    samplingTimes.push_back(footstepNodesList[0].remainTime);
+//    double minTime = std::max(this->overwritableMinTime, this->overwritableMinStepTime - gaitParam.elapsedTime); // 次indexまでの残り時間がthis->overwritableMinTimeを下回るようには着地時間修正を行わない. 現index開始時からの経過時間がthis->overwritableStepMinTimeを下回るようには着地時間修正を行わない.
+//    minTime = std::min(minTime, footstepNodesList[0].remainTime); // もともと下回っている場合には、その値を下回るようには着地時刻修正を行わない.
+//    double maxTime = std::max(this->overwritableMaxStepTime - gaitParam.elapsedTime, minTime); // 現index開始時からの経過時間がthis->overwritableStepMaxTimeを上回るようには着地時間修正を行わない.
+//    maxTime = std::max(maxTime, footstepNodesList[0].remainTime); // もともと上回っている場合には、その値を上回るようには着地時刻修正を行わない.
+//    int sample = std::max(10, int((maxTime - minTime) / 0.1));
+//    for(int i=0;i<=sample;i++) {
+//      double t = minTime + (maxTime - minTime) / sample * i;
+//      if(t != footstepNodesList[0].remainTime) samplingTimes.push_back(t);
+//    }
+//
+//    std::vector<cnoid::Vector3> strideLimitationHull; // generate frame. overwritableStrideLimitationHullの範囲内の着地位置(自己干渉・IKの考慮が含まれる). Z成分には0を入れる
+//    for(int i=0;i<this->overwritableStrideLimitationHull[swingLeg].size();i++){
+//      cnoid::Vector3 p = supportPoseHorizontal * this->overwritableStrideLimitationHull[swingLeg][i];
+//      strideLimitationHull.emplace_back(p[0],p[1],0.0);
+//    }
+//
+//    for(int i=0;i<samplingTimes.size();i++){
+//      double t = samplingTimes[i];
+//      std::vector<cnoid::Vector3> reachableHull; // generate frame. 今の脚の位置からの距離が時刻tに着地することができる範囲. Z成分には0を入れる
+//      int segment = 8;
+//      for(int j=0; j < segment; j++){
+//        reachableHull.emplace_back(swingPose.translation()[0] + this->overwritableMaxSwingVelocity * t * std::cos(2 * M_PI / segment * j),
+//                                   swingPose.translation()[1] + this->overwritableMaxSwingVelocity * t * std::sin(2 * M_PI / segment * j),
+//                                   0.0);
+//      }
+//      std::vector<cnoid::Vector3> hull = mathutil::calcIntersectConvexHull(reachableHull, strideLimitationHull);
+//      if(hull.size() > 0) candidates.emplace_back(hull, t);
+//    }
+//
+//    if(candidates.size() == 0) candidates.emplace_back(std::vector<cnoid::Vector3>{footstepNodesList[0].dstCoords[swingLeg].translation()}, footstepNodesList[0].remainTime); // まず起こらないと思うが念の為
+//
+//    debugData.strideLimitationHull = strideLimitationHull; // for debeg
+//  }
+//  // std::cerr << "strideLimitation と reachable" << std::endl;
+//  // std::cerr << candidates << std::endl;
+//
+//  // 2. steppable: 達成不可の場合や、着地可能領域が与えられていない場合は、考慮しない
+//  // TODO. 高低差と時間の関係
+//  {
+//    std::vector<std::pair<std::vector<cnoid::Vector3>, double> > steppableHulls; // generate frame. first: visionに基づく着地可能領域. Z成分には0を入れる.  second: 高さ
+//    for(int i=0;i<gaitParam.steppableRegion.size();i++){
+//      // 空のHullは除外
+//      // overwritableMaxLandingHeightとoverwritableMinLandingHeightを満たさないregionは除外.
+//      if(gaitParam.steppableRegion[i].size() > 0 &&
+//         (gaitParam.steppableHeight[i] - supportPose.translation()[2] <= this->overwritableMaxLandingHeight) &&
+//         (gaitParam.steppableHeight[i] - supportPose.translation()[2] >= this->overwritableMinLandingHeight)){
+//        std::vector<cnoid::Vector3> steppableHull;
+//        steppableHull.reserve(gaitParam.steppableRegion[i].size());
+//        for(int j=0;j<gaitParam.steppableRegion[i].size();j++) steppableHull.emplace_back(gaitParam.steppableRegion[i][j][0],gaitParam.steppableRegion[i][j][1],0.0);
+//        steppableHulls.emplace_back(steppableHull, gaitParam.steppableHeight[i]);
+//      }
+//    }
+//
+//    std::vector<std::pair<std::vector<cnoid::Vector3>, double> > nextCandidates;
+//    for(int i=0;i<candidates.size();i++){
+//      for(int j=0;j<steppableHulls.size();j++){
+//        // overwritableMaxGroundZVelocityを満たさないregionは除外
+//        if(std::abs(steppableHulls[j].second - gaitParam.genCoords[swingLeg].getGoal().translation()[2]) > 0.2 && candidates[i].second < 0.8) continue; // TODO
+//        if(std::abs(steppableHulls[j].second - gaitParam.srcCoords[swingLeg].translation()[2]) > (gaitParam.elapsedTime + candidates[i].second) * this->overwritableMaxSrcGroundZVelocity) continue;
+//        std::vector<cnoid::Vector3> hull = mathutil::calcIntersectConvexHull(candidates[i].first, steppableHulls[j].first);
+//        if(hull.size() > 0) nextCandidates.emplace_back(hull, candidates[i].second);
+//      }
+//    }
+//    if(nextCandidates.size() > 0) candidates = nextCandidates;
+//    // nextCandidates.size() == 0の場合は、達成不可の場合や、着地可能領域が与えられていない場合なので、candidateの絞り込みを行わない
+//  }
+//  // std::cerr << "steppable" << std::endl;
+//  // std::cerr << candidates << std::endl;
+//
+//  // 3. capturable: 達成不可の場合は、時間が速い方優先(次の一歩に期待). 複数ある場合は可能な限り近い位置. (角運動量 TODO)
+//  // 次の両足支持期終了時に入るケースでもOKにしたい
+//  if (this->safeLegHull[supportLeg].size() == 4) { // for log
+//    for(int i=0;i<this->safeLegHull[supportLeg].size();i++){
+//      cnoid::Vector3 zmp = supportPose * this->safeLegHull[supportLeg][i];// generate frame
+//      debugData.cpViewerLog[i*2+0] = zmp[0];
+//      debugData.cpViewerLog[i*2+1] = zmp[1];
+//    }
+//  }
+//  {
+//    std::vector<std::vector<cnoid::Vector3> > capturableHulls; // 要素数と順番はcandidatesに対応
+//    for(int i=0;i<candidates.size();i++){
+//      std::vector<cnoid::Vector3> capturableVetices; // generate frame. 時刻tに着地すれば転倒しないような着地位置. Z成分には0を入れる
+//      for(double t = candidates[i].second; t <= candidates[i].second + footstepNodesList[1].remainTime; t += footstepNodesList[1].remainTime){ // 接地する瞬間と、次の両足支持期の終了時. 片方だけだと特に横歩きのときに厳しすぎる. refZmpTrajを考えると本当は次の両足支持期の終了時のみを使うのが望ましい. しかし、位置制御成分が大きいロボットだと、力分配しているつもりがなくても接地している足から力を受けるので、接地する瞬間も含めてしまってそんなに問題はない?
+//        for(int j=0;j<this->safeLegHull[supportLeg].size();j++){
+//          cnoid::Vector3 zmp = supportPose * this->safeLegHull[supportLeg][j];// generate frame
+//          cnoid::Vector3 endDCM = (actDCM - zmp - gaitParam.l) * std::exp(gaitParam.omega * t) + zmp + gaitParam.l; // generate frame. 着地時のDCM
+//          // for(int k=0;k<this->safeLegHull[swingLeg].size();k++){
+//          //   cnoid::Vector3 p = endDCM - gaitParam.l - footstepNodesList[0].dstCoords[swingLeg].linear() * this->safeLegHull[swingLeg][k]; // こっちのほうが厳密であり、着地位置時刻修正を最小限にできるが、ロバストさに欠ける
+//          //   capturableVetices.emplace_back(p[0], p[1], 0.0);
+//          // }
+//          cnoid::Vector3 p = endDCM - gaitParam.l - footstepNodesList[0].dstCoords[swingLeg].linear() * gaitParam.copOffset[swingLeg].value();
+//          capturableVetices.emplace_back(p[0], p[1], 0.0);
+//        }
+//      }
+//      capturableHulls.push_back(mathutil::calcConvexHull(capturableVetices)); // generate frame. 時刻tに着地すれば転倒しないような着地位置. Z成分には0を入れる
+//    }
+//
+//    std::vector<std::pair<std::vector<cnoid::Vector3>, double> > nextCandidates;
+//    for(int i=0;i<candidates.size();i++){
+//      std::vector<cnoid::Vector3> hull = mathutil::calcIntersectConvexHull(candidates[i].first, capturableHulls[i]);
+//      if(hull.size() > 0) nextCandidates.emplace_back(hull, candidates[i].second);
+//    }
+//    if(nextCandidates.size() > 0) candidates = nextCandidates;
+//    else{
+//      // 達成不可の場合は、時間が速い方優先(次の一歩に期待). 複数ある場合は可能な限り近い位置.
+//      //   どうせこの一歩ではバランスがとれないので、位置よりも速く次の一歩に移ることを優先したほうが良い
+//      double minTime = std::numeric_limits<double>::max();
+//      double minDistance = std::numeric_limits<double>::max();
+//      cnoid::Vector3 minp;
+//      for(int i=0;i<candidates.size();i++){
+//        if(candidates[i].second <= minTime){
+//          std::vector<cnoid::Vector3> p, q;
+//          double distance = mathutil::calcNearestPointOfTwoHull(candidates[i].first, capturableHulls[i], p, q); // candidates[i].first, capturableHulls[i]は重なっていない・接していない
+//          if(candidates[i].second < minTime ||
+//             (candidates[i].second == minTime && distance < minDistance)){
+//            minTime = candidates[i].second;
+//            minDistance = distance;
+//            nextCandidates.clear();
+//            nextCandidates.emplace_back(p,minTime); // pは、最近傍が点の場合はその点が入っていて、最近傍が線分の場合はその線分の両端点が入っている
+//          }else if(candidates[i].second == minTime && distance == minDistance){
+//            nextCandidates.emplace_back(p,minTime);
+//          }
+//        }
+//      }
+//      candidates = nextCandidates;
+//    }
+//
+//    debugData.capturableHulls = capturableHulls; // for debug
+//  }
+//
+//  // std::cerr << "capturable" << std::endl;
+//  // std::cerr << candidates << std::endl;
+//
+//  // 4. もとの着地位置: 達成不可の場合は、もとの着地位置よりも着地位置修正前の進行方向(遊脚のsrcCoordsからの方向)に進むなかで、もとの着地位置に最も近いもの. それがなければもとの着地位置の最も近いもの. (支持脚からの方向にすると、横歩き時に後ろ足の方向が逆になってしまう)
+//  debugData.cpViewerLog[8] = gaitParam.dstCoordsOrg[swingLeg].translation()[0]; //for log もとの目標着地位置
+//  debugData.cpViewerLog[9] = gaitParam.dstCoordsOrg[swingLeg].translation()[1]; //for log もとの目標着地位置
+//  {
+//    std::vector<std::pair<std::vector<cnoid::Vector3>, double> > nextCandidates;
+//    for(int i=0;i<candidates.size();i++){
+//      if(mathutil::isInsideHull(gaitParam.dstCoordsOrg[swingLeg].translation(), candidates[i].first)){
+//        nextCandidates.emplace_back(std::vector<cnoid::Vector3>{gaitParam.dstCoordsOrg[swingLeg].translation()},candidates[i].second);
+//      }
+//    }
+//    if(nextCandidates.size() > 0) candidates = nextCandidates;
+//    else{ // 達成不可の場合
+//      cnoid::Vector3 dir = gaitParam.dstCoordsOrg[swingLeg].translation() - gaitParam.srcCoords[swingLeg].translation(); dir[2] = 0.0;
+//      if(dir.norm() > 1e-2){ //着地位置修正前の進行方向(遊脚のsrcCoordsからの方向)に進むなかで、もとの着地位置に最も近いもの
+//        dir = dir.normalized();
+//        std::vector<cnoid::Vector3> motionDirHull; // generate frame. 進行方向全体を覆うHull
+//        {
+//          cnoid::Position p = cnoid::Position::Identity();
+//          p.translation() = gaitParam.dstCoordsOrg[swingLeg].translation() - dir * 1e-3/*数値誤差に対応するための微小なマージン*/; p.translation()[2] = 0.0;
+//          p.linear() = (cnoid::Matrix3() << dir[0], -dir[1], 0.0,
+//                                            dir[1], dir[0] , 0.0,
+//                                            0.0,    0.0,     1.0).finished();
+//          motionDirHull.push_back(p * cnoid::Vector3(0.0, -1e10, 0.0));
+//          motionDirHull.push_back(p * cnoid::Vector3(1e10, -1e10, 0.0));
+//          motionDirHull.push_back(p * cnoid::Vector3(1e10, 1e10, 0.0));
+//          motionDirHull.push_back(p * cnoid::Vector3(0.0, 1e10, 0.0));
+//        }
+//        double minDistance = std::numeric_limits<double>::max();
+//        for(int i=0;i<candidates.size();i++){
+//          std::vector<cnoid::Vector3> hull = mathutil::calcIntersectConvexHull(candidates[i].first, motionDirHull);
+//          if(hull.size() == 0) continue;
+//          cnoid::Vector3 p = mathutil::calcNearestPointOfHull(gaitParam.dstCoordsOrg[swingLeg].translation(), hull);
+//          double distance = (p - gaitParam.dstCoordsOrg[swingLeg].translation()).norm();
+//          if(distance < minDistance){
+//            minDistance = distance;
+//            nextCandidates.clear();
+//            nextCandidates.emplace_back(std::vector<cnoid::Vector3>{p},candidates[i].second);
+//          }else if (distance == minDistance){
+//            nextCandidates.emplace_back(std::vector<cnoid::Vector3>{p}, candidates[i].second);
+//          }
+//        }
+//      }
+//      if(nextCandidates.size() > 0) candidates = nextCandidates;
+//      else{ // もとの着地位置に最も近いもの.
+//        double minDistance = std::numeric_limits<double>::max();
+//        for(int i=0;i<candidates.size();i++){
+//          cnoid::Vector3 p = mathutil::calcNearestPointOfHull(gaitParam.dstCoordsOrg[swingLeg].translation(), candidates[i].first);
+//          double distance = (p - gaitParam.dstCoordsOrg[swingLeg].translation()).norm();
+//          if(distance < minDistance){
+//            minDistance = distance;
+//            nextCandidates.clear();
+//            nextCandidates.emplace_back(std::vector<cnoid::Vector3>{p}, candidates[i].second);
+//          }else if (distance == minDistance){
+//            nextCandidates.emplace_back(std::vector<cnoid::Vector3>{p}, candidates[i].second);
+//          }
+//        }
+//        candidates = nextCandidates;
+//      }
+//    }
+//  }
+//
+//  // std::cerr << "pos" << std::endl;
+//  // std::cerr << candidates << std::endl;
+//
+//  // 5. もとの着地時刻(remainTimeOrg): 達成不可の場合は、可能な限り近い時刻
+//  {
+//    std::vector<std::pair<std::vector<cnoid::Vector3>, double> > nextCandidates;
+//    double targetRemainTime = gaitParam.remainTimeOrg - gaitParam.elapsedTime; // 負になっているかもしれない.
+//    double minDiffTime = std::numeric_limits<double>::max();
+//    for(int i=0;i<candidates.size();i++){
+//      double diffTime = std::abs(candidates[i].second - targetRemainTime);
+//      if(diffTime < minDiffTime){
+//        minDiffTime = diffTime;
+//        nextCandidates.clear();
+//        nextCandidates.push_back(candidates[i]);
+//      }else if(diffTime == minDiffTime){
+//        minDiffTime = diffTime;
+//        nextCandidates.push_back(candidates[i]);
+//      }
+//    }
+//    candidates = nextCandidates;
+//  }
+//
+//  // std::cerr << "time" << std::endl;
+//  // std::cerr << candidates << std::endl;
+//
+//  // 修正を適用
+//  cnoid::Vector3 nextDstCoordsPos = candidates[0].first[0]; // generate frame
+//  // Z高さはrelLandingHeightから受け取った値を用いる. relLandingHeightが届いていなければ、修正しない.
+//  if (gaitParam.swingState[swingLeg] != GaitParam::DOWN_PHASE && gaitParam.relLandingHeight > -1e+10) {
+//    nextDstCoordsPos[2] = std::min(supportPose.translation()[2] + this->overwritableMaxLandingHeight, std::max(supportPose.translation()[2] + this->overwritableMinLandingHeight, gaitParam.relLandingHeight));   //landingHeightから受け取った値を用いて着地高さを変更
+//  }else{
+//    nextDstCoordsPos[2] = footstepNodesList[0].dstCoords[swingLeg].translation()[2];
+//  }
+//  cnoid::Vector3 displacement = nextDstCoordsPos - footstepNodesList[0].dstCoords[swingLeg].translation(); // generate frame
+//  this->transformFutureSteps(footstepNodesList, 0, displacement);
+//  footstepNodesList[0].remainTime = candidates[0].second;
+//
+//  //landingHeightから受け取った値を用いて着地姿勢を変更
+//  if (gaitParam.swingState[swingLeg] != GaitParam::DOWN_PHASE && gaitParam.relLandingHeight > -1e+10) {
+//    footstepNodesList[0].dstCoords[swingLeg].linear() = mathutil::orientCoordToAxis(gaitParam.dstCoordsOrg[swingLeg].linear(), gaitParam.relLandingNormal); // dstCoordsを毎周期orientCoordToAxisすると計算誤差でだんだん変にずれてくるので、dstCoordsOrgを使う. この処理以外ではdstCoordsの傾きは変更されないという仮定がある.
+//  }
+//}
+
+//遊脚可到達性、支持脚等速移動（脚車輪）を考慮したCaptureRegion計算
+//足平が長方形であると仮定、遊脚軌道がXY分離可能と仮定
+void FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& reachableCaptureRegionHull, const cnoid::Vector3& actDCM, const GaitParam::FootStepNodes& footstepNode, const std::vector<cpp_filters::TwoPointInterpolatorSE3>& genCoords, const double& omega, const double& minTime, const double& maxTime, const double& wheelVel) const {
+  int swingLeg = footstepNode.isSupportPhase[RLEG] ? LLEG : RLEG;
+  int supportLeg = (swingLeg == RLEG) ? LLEG : RLEG;
+  cnoid::Position swingPose = genCoords[swingLeg].value();
+  cnoid::Position supportPose = genCoords[supportLeg].value();
+  cnoid::Position supportPoseHorizontal = mathutil::orientCoordToAxis(supportPose, cnoid::Vector3::UnitZ());
+
+  //supportPoseHorizontal座標系に直す（xy分離のため）
+  cnoid::Vector3 cp = supportPoseHorizontal.inverse() * actDCM;
+  swingPose = supportPoseHorizontal.inverse() * swingPose;
+
+  double tmin = 0.1;
+  cnoid::Vector3 zmpv = cnoid::Vector3(wheelVel, 0.0, 0.0);
+  cnoid::Vector3 vmax = cnoid::Vector3(1.0, 1.0, 0.0);;
+
+  //safeLegHullが長方形であることを仮定(xy分離のため)
+  cnoid::Vector3 zmpMin = cnoid::Vector3::Zero();
+  cnoid::Vector3 zmpMax = cnoid::Vector3::Zero();
+  for (int i=0; i<this->safeLegHull[supportLeg].size(); i++) {
+    if (zmpMin[0]  > this->safeLegHull[supportLeg][i][0]) zmpMin[0] = this->safeLegHull[supportLeg][i][0];
+    if (zmpMax[0]  < this->safeLegHull[supportLeg][i][0]) zmpMax[0] = this->safeLegHull[supportLeg][i][0];
+    if (zmpMin[1]  > this->safeLegHull[supportLeg][i][1]) zmpMin[1] = this->safeLegHull[supportLeg][i][1];
+    if (zmpMax[1]  < this->safeLegHull[supportLeg][i][1]) zmpMax[1] = this->safeLegHull[supportLeg][i][1];
+  }
+
+  //CRが存在するMinMaxTimeを計算し、CR凸包のためのサンプリングタイムを決定
+  double tmpMin, tmpMax;
+  std::vector<std::vector<double> > samplingTime = std::vector<std::vector<double> >{std::vector<double>(), std::vector<double>(), std::vector<double>()};//0...x, 1...y, 2...merge
+  for (int i=0; i<2; i++) {
+    tmpMin = tmin, tmpMax = 20;
+    if (calcCRMinMaxTime(tmpMin, tmpMax, 0.001, omega, cp[i], zmpMin[i], zmpv[i], tmin, vmax[i], swingPose.translation()[i])) {
+      samplingTime[i].push_back(tmpMin+0.001);
+      samplingTime[i].push_back(tmpMax-0.001);
+    }
+    tmpMin = tmin, tmpMax = 20;
+    if (calcCRMinMaxTime(tmpMin, tmpMax, 0.001, omega, cp[i], zmpMax[i], zmpv[i], tmin, vmax[i], swingPose.translation()[i])) {
+      samplingTime[i].push_back(tmpMin+0.001);
+      samplingTime[i].push_back(tmpMax-0.001);
+    }
+    if (fcp(tmin, omega, cp[i], zmpMax[i], zmpv[i]) < swingPose.translation()[i] && swingPose.translation()[i] < fcp(tmin, omega, cp[i], zmpMin[i], zmpv[i])) { //zmpMinMax反転するので注意
+      samplingTime[i].push_back(tmin);
+    }
+    if (fcp(maxTime, omega, cp[i], zmpMax[i], zmpv[i]) < fsw(maxTime, tmin, vmax[i], swingPose.translation()[i]) && fsw(maxTime, tmin, -vmax[i], swingPose.translation()[i]) < fcp(tmin, omega, cp[i], zmpMin[i], zmpv[i])) {
+      samplingTime[i].push_back(maxTime);
+    }
+    std::sort(samplingTime[i].begin(), samplingTime[i].end());
+  }
+
+  if(samplingTime[0].size() < 2 || samplingTime[1].size() < 2) {
+    std::cout << "ssssssssssssssssssaaaaaaaaaaaaaaaaaaaaaaammmmmmmmmmmmmmmmmmmmmppppppppppppppppppppplllllllllllllllllllllllliiiiiiiiiiiiiiiiiiiiinnnnnnnnnnnnnnnnnnnnnggggggggggggggggeeeeeeeeeeeeeeerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrroooooooooooooooooooooooooorrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr" << std::endl;
+    samplingTime[0].push_back(tmin);
+    samplingTime[0].push_back(maxTime);
+    samplingTime[1].push_back(tmin);
+    samplingTime[1].push_back(maxTime);
+    std::cout << samplingTime[0].size() << " " << samplingTime[1].size() << std::endl;
+  }
+
+  tmpMin = std::max(samplingTime[0][0], samplingTime[1][0]);
+  tmpMax = std::min(samplingTime[0].back(), samplingTime[1].back());
+  for (int i = 0; i < 2; i++) {
+    for (int j = 0; j < samplingTime[i].size(); j++) {
+      if (tmpMin <= samplingTime[i][j] && samplingTime[i][j] <= tmpMax) samplingTime[2].push_back(samplingTime[i][j]);
+    }
+  }
+
+  for (int i = 1; i < 10; i++) {
+    samplingTime[2].push_back(tmpMin + (tmpMax - tmpMin) * double(i) / 10.0);
+  }
+  std::sort(samplingTime[2].begin(), samplingTime[2].end());
+
+  //CR凸包を計算
+  std::vector<cv::Point2f> cpList;
+  for (int i=0; i<samplingTime[2].size(); i++) {
+    double cpMaxX = fcp(samplingTime[2][i], omega, cp[0], zmpMin[0], zmpv[0]);
+    double cpMinX = fcp(samplingTime[2][i], omega, cp[0], zmpMax[0], zmpv[0]);
+    double cpMaxY = fcp(samplingTime[2][i], omega, cp[1], zmpMin[1], zmpv[1]);
+    double cpMinY = fcp(samplingTime[2][i], omega, cp[1], zmpMax[1], zmpv[1]);
+
+    double swMaxX = fsw(samplingTime[2][i], tmin, vmax[0], swingPose.translation()[0]);
+    double swMinX = fsw(samplingTime[2][i], tmin, -vmax[0], swingPose.translation()[0]);
+    double swMaxY = fsw(samplingTime[2][i], tmin, vmax[1], swingPose.translation()[1]);
+    double swMinY = fsw(samplingTime[2][i], tmin, -vmax[1], swingPose.translation()[1]);
+    if (samplingTime[0].size() < 2 || samplingTime[1].size() < 2) {
+      swMaxX = 1e+5;
+      swMinX = -1e+5;
+      swMaxY = 1e+5;
+      swMinY = -1e+5;
+    }
+
+    if (std::max(cpMinX, swMinX) < std::min(cpMaxX, swMaxX) && std::max(cpMinY, swMinY) < std::min(swMaxY, swMaxY)) {
+      cpList.emplace_back(cv::Point2f(std::max(cpMinX, swMinX), std::max(cpMinY, swMinY)));
+      cpList.emplace_back(cv::Point2f(std::max(cpMinX, swMinX), std::min(cpMaxY, swMaxY)));
+      cpList.emplace_back(cv::Point2f(std::min(cpMaxX, swMaxX), std::max(cpMinY, swMinY)));
+      cpList.emplace_back(cv::Point2f(std::min(cpMaxX, swMaxX), std::min(cpMaxY, swMaxY)));
+    } else {
+      std::cout << "okasiiyo" << std::endl;
+    }
+  }
+  std::vector<cv::Point2f> hull;
+  cv::convexHull(cpList, hull);
+
+  reachableCaptureRegionHull.resize(hull.size());
+  for (int i=0; i<hull.size(); i++) {
+    reachableCaptureRegionHull[i] = supportPoseHorizontal * cnoid::Vector3(hull[i].x, hull[i].y, 0); //座標系戻す
+  }
+}
+
+//ニュートン法によりminmaxtimeを計算
+bool FootStepGenerator::calcCRMinMaxTime(double& minTime, double& maxTime, double delta, double omega, double cp, double zmp, double zmpv, double tmin, double vmax, double sw) const{
+  double tmpTime = tmin;
+  if (cp < zmp + zmpv/omega) { //fcpが増加していくようにする
+    cp = -cp;
+    zmp = -zmp;
+    zmpv = -zmpv;
+    sw = -sw;
+  }
+  if (sw > fcp(tmin, omega, cp, zmp, zmpv)) {
+    while (fsw(tmpTime, tmin, -vmax, sw) - fcp(tmpTime, omega, cp, zmp, zmpv) > delta) {
+      double dx = dfsw(tmpTime, -vmax) - dfcp(tmpTime, omega, cp, zmp, zmpv);
+      if (dx > 0) {
+        return false;
+      }
+      tmpTime = tmpTime - (fsw(tmpTime, tmin, -vmax, sw) - fcp(tmpTime, omega, cp, zmp, zmpv))/dx;
+    }
+  } else {
+    while (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw) > delta) {
+      double dx = dfcp(tmpTime, omega, cp, zmp, zmpv) - dfsw(tmpTime, vmax);
+      if (dx > 0) {
+        return false;
+      }
+      tmpTime = tmpTime - (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw))/dx;
+    }
+  }
+  minTime = tmpTime;
+  tmpTime = maxTime;
+  while (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw) > delta) {
+    double dx = dfcp(tmpTime, omega, cp, zmp, zmpv) - dfsw(tmpTime, vmax);
+    if (dx < 0) {
+      return false;
+    }
+    tmpTime = tmpTime - (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw))/dx;
+  }
+  maxTime = tmpTime;
+  return true;
 }
 
 // 早づきしたらremainTimeが0になるまで今の位置で止める.

@@ -33,6 +33,7 @@ AutoStabilizer::Ports::Ports() :
   m_selfCollisionIn_("selfCollisionIn", m_selfCollision_),
   m_steppableRegionIn_("steppableRegionIn", m_steppableRegion_),
   m_landingHeightIn_("landingHeightIn", m_landingHeight_),
+  m_wheelVelIn_("wheelVelIn", m_wheelVel_),
 
   m_qOut_("q", m_q_),
   m_genTauOut_("genTauOut", m_genTau_),
@@ -40,6 +41,7 @@ AutoStabilizer::Ports::Ports() :
   m_genBaseTformOut_("genBaseTformOut", m_genBaseTform_),
   m_genImuAccOut_("genImuAccOut", m_genImuAcc_),
   m_landingTargetOut_("landingTargetOut", m_landingTarget_),
+  m_legOdomOut_("legOdomOut", m_legOdom_),
 
   m_genBasePosOut_("genBasePosOut", m_genBasePos_),
   m_genBaseRpyOut_("genBaseRpyOut", m_genBaseRpy_),
@@ -83,12 +85,14 @@ RTC::ReturnCode_t AutoStabilizer::onInitialize(){
   this->addInPort("selfCollisionIn", this->ports_.m_selfCollisionIn_);
   this->addInPort("steppableRegionIn", this->ports_.m_steppableRegionIn_);
   this->addInPort("landingHeightIn", this->ports_.m_landingHeightIn_);
+  this->addInPort("wheelVelIn", this->ports_.m_wheelVelIn_);
   this->addOutPort("q", this->ports_.m_qOut_);
   this->addOutPort("genTauOut", this->ports_.m_genTauOut_);
   this->addOutPort("genBasePoseOut", this->ports_.m_genBasePoseOut_);
   this->addOutPort("genBaseTformOut", this->ports_.m_genBaseTformOut_);
   this->addOutPort("genImuAccOut", this->ports_.m_genImuAccOut_);
   this->addOutPort("landingTargetOut", this->ports_.m_landingTargetOut_);
+  this->addOutPort("legOdomOut", this->ports_.m_legOdomOut_);
   this->addOutPort("genBasePosOut", this->ports_.m_genBasePosOut_);
   this->addOutPort("genBaseRpyOut", this->ports_.m_genBaseRpyOut_);
   this->addOutPort("genCogOut", this->ports_.m_genCogOut_);
@@ -331,7 +335,7 @@ RTC::ReturnCode_t AutoStabilizer::onInitialize(){
 }
 
 // static function
-bool AutoStabilizer::readInPortData(const double& dt, const GaitParam& gaitParam, const AutoStabilizer::ControlMode& mode, AutoStabilizer::Ports& ports, cnoid::BodyPtr refRobotRaw, cnoid::BodyPtr actRobotRaw, std::vector<cnoid::Vector6>& refEEWrenchOrigin, std::vector<cpp_filters::TwoPointInterpolatorSE3>& refEEPoseRaw, std::vector<GaitParam::Collision>& selfCollision, std::vector<std::vector<cnoid::Vector3> >& steppableRegion, std::vector<double>& steppableHeight, double& relLandingHeight, cnoid::Vector3& relLandingNormal){
+bool AutoStabilizer::readInPortData(const double& dt, const GaitParam& gaitParam, const AutoStabilizer::ControlMode& mode, AutoStabilizer::Ports& ports, cnoid::BodyPtr refRobotRaw, cnoid::BodyPtr actRobotRaw, std::vector<cnoid::Vector6>& refEEWrenchOrigin, std::vector<cpp_filters::TwoPointInterpolatorSE3>& refEEPoseRaw, std::vector<GaitParam::Collision>& selfCollision, std::vector<std::vector<cnoid::Vector3> >& steppableRegion, std::vector<double>& steppableHeight, double& relLandingHeight, cnoid::Vector3& relLandingNormal, double& wheelVel){
   bool qRef_updated = false;
   if(ports.m_qRefIn_.isNew()){
     ports.m_qRefIn_.read();
@@ -551,6 +555,12 @@ bool AutoStabilizer::readInPortData(const double& dt, const GaitParam& gaitParam
     }
   }
 
+  if(ports.m_wheelVelIn_.isNew()) {
+    ports.m_wheelVelIn_.read();
+    wheelVel = ports.m_wheelVel_.data;
+    std::cout << "auto_stabilizer wheel vel: " << ports.m_wheelVel_.data << std::endl;
+  }
+
   return qRef_updated;
 }
 
@@ -597,7 +607,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
 
   // AutoBalancer
   footStepGenerator.procFootStepNodesList(gaitParam, dt, mode.isSTRunning(),
-                                          gaitParam.footstepNodesList, gaitParam.srcCoords, gaitParam.dstCoordsOrg, gaitParam.remainTimeOrg, gaitParam.swingState, gaitParam.elapsedTime, gaitParam.prevSupportPhase, gaitParam.relLandingHeight);
+                                          gaitParam.footstepNodesList, gaitParam.srcCoords, gaitParam.dstCoordsOrg, gaitParam.remainTimeOrg, gaitParam.swingState, gaitParam.elapsedTime, gaitParam.prevSupportPhase, gaitParam.relLandingHeight, gaitParam.wheelVel);
   footStepGenerator.calcFootSteps(gaitParam, dt, mode.isSTRunning(),
                                   gaitParam.debugData, //for log
                                   gaitParam.footstepNodesList);
@@ -624,6 +634,24 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
   // FullbodyIKSolver
   fullbodyIKSolver.solveFullbodyIK(dt, gaitParam,// input
                                    gaitParam.genRobot); // output
+
+  //legOdomを計算 TODO べた書きをやめる
+  gaitParam.debugData.cpViewerLog[10] = gaitParam.actEEPose[RLEG].translation()[0];
+  gaitParam.debugData.cpViewerLog[11] = gaitParam.actEEPose[RLEG].translation()[1];
+  gaitParam.debugData.cpViewerLog[12] = gaitParam.actEEPose[LLEG].translation()[0];
+  gaitParam.debugData.cpViewerLog[13] = gaitParam.actEEPose[LLEG].translation()[1];
+  if (gaitParam.elapsedTime == 0) {//遊脚開始時
+    cnoid::Position rlegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[RLEG], cnoid::Vector3::UnitZ());
+    cnoid::Position llegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[LLEG], cnoid::Vector3::UnitZ());
+    if(gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[LLEG]) {
+      gaitParam.legOdom = rlegPose.inverse() * llegPose * gaitParam.legOdom;
+      gaitParam.legOdomSupportLeg = RLEG;
+    }
+    if(!gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && gaitParam.footstepNodesList[0].isSupportPhase[LLEG]) {
+      gaitParam.legOdom = llegPose.inverse() * rlegPose * gaitParam.legOdom;
+      gaitParam.legOdomSupportLeg = LLEG;
+    }
+  }
 
   return true;
 }
@@ -812,6 +840,26 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
     ports.m_landingTargetOut_.write();
   }
 
+  //legOdom
+  if(mode.isABCRunning()) {
+    ports.m_legOdom_.tm = ports.m_qRef_.tm;
+    ports.m_legOdom_.data.length(8);
+
+    ports.m_legOdom_.data[0] = gaitParam.legOdom.translation()[0];
+    ports.m_legOdom_.data[1] = gaitParam.legOdom.translation()[1];
+    ports.m_legOdom_.data[2] = gaitParam.legOdom.translation()[2];
+
+    Eigen::Quaterniond tmp(gaitParam.legOdom.linear());
+    ports.m_legOdom_.data[3] = tmp.x();
+    ports.m_legOdom_.data[4] = tmp.y();
+    ports.m_legOdom_.data[5] = tmp.z();
+    ports.m_legOdom_.data[6] = tmp.w();
+
+    ports.m_legOdom_.data[7] = gaitParam.legOdomSupportLeg;
+
+    ports.m_legOdomOut_.write();
+  }
+
   // actEEPose actEEWrench (for wholebodymasterslave)
   if(mode.isABCRunning()){
     for(int i=0;i<gaitParam.eeName.size();i++){
@@ -891,16 +939,10 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
     ports.m_genCoordsOut_.write();
     {
       ports.m_captureRegion_.tm = ports.m_qRef_.tm;
-      int sum = 0;
-      for (int i=0; i<gaitParam.debugData.capturableHulls.size(); i++) sum+=gaitParam.debugData.capturableHulls[i].size();
-      ports.m_captureRegion_.data.length(sum*2);
-      int index = 0;
-      for (int i=0; i<gaitParam.debugData.capturableHulls.size(); i++) {
-        for (int j=0; j<gaitParam.debugData.capturableHulls[i].size(); j++) {
-          ports.m_captureRegion_.data[index+0] = gaitParam.debugData.capturableHulls[i][j][0];
-          ports.m_captureRegion_.data[index+1] = gaitParam.debugData.capturableHulls[i][j][1];
-          index+=2;
-        }
+      ports.m_captureRegion_.data.length(gaitParam.debugData.reachableCaptureRegionHull.size()*2);
+      for (int i=0; i<gaitParam.debugData.reachableCaptureRegionHull.size(); i++) {
+        ports.m_captureRegion_.data[i*2+0] = gaitParam.debugData.reachableCaptureRegionHull[i][0];
+        ports.m_captureRegion_.data[i*2+1] = gaitParam.debugData.reachableCaptureRegionHull[i][1];
       }
       ports.m_captureRegionOut_.write();
     }
@@ -953,7 +995,7 @@ RTC::ReturnCode_t AutoStabilizer::onExecute(RTC::UniqueId ec_id){
   std::string instance_name = std::string(this->m_profile.instance_name);
   this->loop_++;
 
-  if(!AutoStabilizer::readInPortData(this->dt_, this->gaitParam_, this->mode_, this->ports_, this->gaitParam_.refRobotRaw, this->gaitParam_.actRobotRaw, this->gaitParam_.refEEWrenchOrigin, this->gaitParam_.refEEPoseRaw, this->gaitParam_.selfCollision, this->gaitParam_.steppableRegion, this->gaitParam_.steppableHeight, this->gaitParam_.relLandingHeight, this->gaitParam_.relLandingNormal)) return RTC::RTC_OK;  // qRef が届かなければ何もしない
+  if(!AutoStabilizer::readInPortData(this->dt_, this->gaitParam_, this->mode_, this->ports_, this->gaitParam_.refRobotRaw, this->gaitParam_.actRobotRaw, this->gaitParam_.refEEWrenchOrigin, this->gaitParam_.refEEPoseRaw, this->gaitParam_.selfCollision, this->gaitParam_.steppableRegion, this->gaitParam_.steppableHeight, this->gaitParam_.relLandingHeight, this->gaitParam_.relLandingNormal, this->gaitParam_.wheelVel)) return RTC::RTC_OK;  // qRef が届かなければ何もしない
 
   this->mode_.update(this->dt_);
   this->gaitParam_.update(this->dt_);

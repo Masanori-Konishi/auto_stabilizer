@@ -39,6 +39,7 @@ public:
 
 protected:
   mutable std::vector<cpp_filters::FirstOrderLowPassFilter<cnoid::Vector6> > actLegWrenchFilter = std::vector<cpp_filters::FirstOrderLowPassFilter<cnoid::Vector6> >(2, cpp_filters::FirstOrderLowPassFilter<cnoid::Vector6>(50.0, cnoid::Vector6::Zero()));  // 要素数2. rleg: 0. lleg: 1. generate frame. endeffector origin. cutoff 50hz. contactDecisionThresholdを用いた接触判定に用いる
+  mutable cnoid::Vector3 destFootstepOffset = cnoid::Vector3::Zero();
 public:
   // startAutoBalancer時に呼ばれる
   void reset(){
@@ -104,7 +105,7 @@ public:
 
   // FootStepNodesListをdtすすめる
   bool procFootStepNodesList(const GaitParam& gaitParam, const double& dt, bool useActState,
-                             std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase, double& relLandingHeight) const;
+                             std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase, double& relLandingHeight, double& wheelVel) const;
 
   /*
     footstepNodesList[1]開始時のsupport/swingの状態を上書きによって変更する場合は、footstepNodesList[0]の終了時の状態が両脚支持でかつその期間の時間がdefaultDoubleSupportTimeよりも短いなら延長する
@@ -127,13 +128,19 @@ protected:
   void checkStableGoStop(std::vector<GaitParam::FootStepNodes>& footstepNodesList, const GaitParam& gaitParam) const;
   // footstepNodesListをdtだけ進める
   bool goNextFootStepNodesList(const GaitParam& gaitParam, double dt,
-                               std::vector<GaitParam::FootStepNodes>& footstepNodesList, std::vector<cnoid::Position>& srcCoords, std::vector<cnoid::Position>& dstCoordsOrg, double& remainTimeOrg, std::vector<GaitParam::SwingState_enum>& swingState, double& elapsedTime, double& relLandingHeight) const;
+                               std::vector<GaitParam::FootStepNodes>& footstepNodesList, std::vector<cnoid::Position>& srcCoords, std::vector<cnoid::Position>& dstCoordsOrg, double& remainTimeOrg, std::vector<GaitParam::SwingState_enum>& swingState, double& elapsedTime, double& relLandingHeight, double& wheelVel) const;
   // emergengy step.
   void checkEmergencyStep(std::vector<GaitParam::FootStepNodes>& footstepNodesList, const GaitParam& gaitParam) const;
   // 着地位置・タイミング修正
   void modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, // input & output
                        GaitParam::DebugData& debugData, //for Log
                        const GaitParam& gaitParam) const;
+  void calcReachableCaptureRegion(std::vector<cnoid::Vector3>& reachableCaptureRegionHull, const cnoid::Vector3& actDCM, const GaitParam::FootStepNodes& footstepNode, const std::vector<cpp_filters::TwoPointInterpolatorSE3>& genCoords, const double& omega, const double& minTime, const double& maxTime, const double& wheelVel) const;
+  double fcp(double t, double omega, double cp, double zmp, double zmpv) const {return std::exp(omega * t) * (cp - (zmp + zmpv/omega)) + (zmp + zmpv * t + zmpv/omega);};
+  double fsw(double t, double tmin, double vmax, double sw) const {return (t - tmin) * vmax + sw;};
+  double dfcp(double t, double omega, double cp, double zmp, double zmpv) const {return omega * std::exp(omega * t) * (cp - (zmp + zmpv/omega)) + zmpv;};
+  double dfsw(double t, double vmax) const {return vmax;};
+  bool calcCRMinMaxTime(double& minTime, double& maxTime, double delta, double omega, double cp, double zmp, double zmpv, double tmin, double vmax, double sw) const;
 
   // footstepNodesList[idx:] idxより先のstepの位置をgenerate frameで(左から)transformだけ動かす
   void transformFutureSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, int index, const cnoid::Position& transform/*generate frame*/) const;

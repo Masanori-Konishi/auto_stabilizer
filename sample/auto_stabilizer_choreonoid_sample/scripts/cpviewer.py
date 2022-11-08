@@ -105,7 +105,7 @@ while True:
     img = np.zeros((1500, 1500, 3))
 
     capture_region = reshape_list(cr_data[i][1:])
-    capture_region = cv2.convexHull(capture_region)
+    #capture_region = cv2.convexHull(capture_region)
 
     steppable_region = []
     index = 1
@@ -128,6 +128,8 @@ while True:
     cv2.circle(img, reshape_pos(landingdata[i][4:6]), 10, (1, 0, 0), -1)
     cv2.circle(img, reshape_pos(gencoordsdata[i][1:3]), 10, (1, 1, 0), -1)
     cv2.circle(img, reshape_pos(gencoordsdata[i][4:6]), 10, (1, 1, 0), -1)
+    cv2.circle(img, reshape_pos(cpviewerdata[i][11:13]), 5, (0.5, 0.5, 0), -1)
+    cv2.circle(img, reshape_pos(cpviewerdata[i][13:15]), 5, (0.5, 0.5, 0), -1)
     cv2.circle(img, reshape_pos(cpviewerdata[i][9:11]), 5, (1, 0, 0.5), -1)
     #cv2.circle(img, reshape_pos(tmpdata[i][17:19]), 5, (255, 0, 255), -1)
     #cv2.line(img, reshape_pos(tmpdata[i][19:21]), reshape_pos(tmpdata[i][21:23]), (255, 100, 100), 3)
@@ -172,7 +174,7 @@ while True:
     elif key == 32:
         mode = "play"
     elif key == 13:
-        print(cpviewerdata[i][0]) #その他cpviewerdataのデバッグ情報表示
+        print(cpviewerdata[i][0], cpviewerdata[i][15]) #その他cpviewerdataのデバッグ情報表示
     elif key == 27:
         break
     #if key != -1:
