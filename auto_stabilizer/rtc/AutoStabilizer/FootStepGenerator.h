@@ -140,6 +140,7 @@ protected:
   double fsw(double t, double tmin, double vmax, double sw) const {return (t - tmin) * vmax + sw;};
   double dfcp(double t, double omega, double cp, double zmp, double zmpv) const {return omega * std::exp(omega * t) * (cp - (zmp + zmpv/omega)) + zmpv;};
   double dfsw(double t, double vmax) const {return vmax;};
+  double calc_df(double omega, double cp, double zmp, double zmpv, double vmax) const {return std::log((vmax-zmpv)/(omega*(cp - (zmp + zmpv / omega)))) / omega;};
   bool calcCRMinMaxTime(double& minTime, double& maxTime, double delta, double omega, double cp, double zmp, double zmpv, double tmin, double vmax, double sw) const;
 
   // footstepNodesList[idx:] idxより先のstepの位置をgenerate frameで(左から)transformだけ動かす

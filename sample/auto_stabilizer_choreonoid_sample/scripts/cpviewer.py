@@ -174,7 +174,7 @@ while True:
     elif key == 32:
         mode = "play"
     elif key == 13:
-        print(cpviewerdata[i][0], cpviewerdata[i][15]) #その他cpviewerdataのデバッグ情報表示
+        print(cpviewerdata[i][0], cpviewerdata[i][15:]) #その他cpviewerdataのデバッグ情報表示
     elif key == 27:
         break
     #if key != -1:

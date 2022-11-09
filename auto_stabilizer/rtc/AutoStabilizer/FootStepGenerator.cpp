@@ -1009,8 +1009,8 @@ void FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
     }
   }
 
-  for (int i = 1; i < 10; i++) {
-    samplingTime[2].push_back(tmpMin + (tmpMax - tmpMin) * double(i) / 10.0);
+  for (int i = 1; i < 4; i++) {
+    samplingTime[2].push_back(tmpMin + (tmpMax - tmpMin) * double(i) / 4.0);
   }
   std::sort(samplingTime[2].begin(), samplingTime[2].end());
 

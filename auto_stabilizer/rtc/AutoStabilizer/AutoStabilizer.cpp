@@ -845,11 +845,20 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
     ports.m_legOdom_.tm = ports.m_qRef_.tm;
     ports.m_legOdom_.data.length(8);
 
-    ports.m_legOdom_.data[0] = gaitParam.legOdom.translation()[0];
-    ports.m_legOdom_.data[1] = gaitParam.legOdom.translation()[1];
-    ports.m_legOdom_.data[2] = gaitParam.legOdom.translation()[2];
+    cnoid::Position rlegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[RLEG], cnoid::Vector3::UnitZ());
+    cnoid::Position llegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[LLEG], cnoid::Vector3::UnitZ());
 
-    Eigen::Quaterniond tmp(gaitParam.legOdom.linear());
+    cnoid::Position tmp_position;
+    if (gaitParam.legOdomSupportLeg == 0) {
+      tmp_position = gaitParam.actEEPose[RLEG].inverse() * rlegPose * gaitParam.legOdom;
+    } else {
+      tmp_position = gaitParam.actEEPose[LLEG].inverse() * llegPose * gaitParam.legOdom;
+    }
+    ports.m_legOdom_.data[0] = tmp_position.translation()[0];
+    ports.m_legOdom_.data[1] = tmp_position.translation()[1];
+    ports.m_legOdom_.data[2] = tmp_position.translation()[2];
+
+    Eigen::Quaterniond tmp(tmp_position.linear());
     ports.m_legOdom_.data[3] = tmp.x();
     ports.m_legOdom_.data[4] = tmp.y();
     ports.m_legOdom_.data[5] = tmp.z();
