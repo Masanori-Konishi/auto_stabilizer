@@ -523,7 +523,10 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   debugData.strideLimitationHull = strideLimitationHull; // for debeg
 
   std::vector<cnoid::Vector3> reachableCaptureRegionHull = std::vector<cnoid::Vector3>();
-  calcReachableCaptureRegion(reachableCaptureRegionHull, actDCM, footstepNodesList[0], gaitParam.genCoords, gaitParam.omega, minTime, maxTime, gaitParam.wheelVel);
+  if (!calcReachableCaptureRegion(reachableCaptureRegionHull, actDCM, footstepNodesList[0], gaitParam.genCoords, gaitParam.omega, minTime, maxTime, gaitParam.wheelVel, debugData)) {
+    //CRない時
+    return; //着地位置修正を行わない
+  }
   debugData.reachableCaptureRegionHull = reachableCaptureRegionHull; // for debug
 
   std::vector<cnoid::Vector3> genSafeSupportLegHull;
@@ -944,7 +947,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
 
 //遊脚可到達性、支持脚等速移動（脚車輪）を考慮したCaptureRegion計算
 //足平が長方形であると仮定、遊脚軌道がXY分離可能と仮定
-void FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& reachableCaptureRegionHull, const cnoid::Vector3& actDCM, const GaitParam::FootStepNodes& footstepNode, const std::vector<cpp_filters::TwoPointInterpolatorSE3>& genCoords, const double& omega, const double& minTime, const double& maxTime, const double& wheelVel) const {
+bool FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& reachableCaptureRegionHull, const cnoid::Vector3& actDCM, const GaitParam::FootStepNodes& footstepNode, const std::vector<cpp_filters::TwoPointInterpolatorSE3>& genCoords, const double& omega, const double& minTime, const double& maxTime, const double& wheelVel, GaitParam::DebugData& debugData) const {
   int swingLeg = footstepNode.isSupportPhase[RLEG] ? LLEG : RLEG;
   int supportLeg = (swingLeg == RLEG) ? LLEG : RLEG;
   cnoid::Position swingPose = genCoords[swingLeg].value();
@@ -969,27 +972,49 @@ void FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
     if (zmpMax[1]  < this->safeLegHull[supportLeg][i][1]) zmpMax[1] = this->safeLegHull[supportLeg][i][1];
   }
 
+  debugData.cpViewerLog[15] = omega;
+  debugData.cpViewerLog[16] = cp[0];
+  debugData.cpViewerLog[17] = cp[1];
+  debugData.cpViewerLog[18] = swingPose.translation()[0];
+  debugData.cpViewerLog[19] = swingPose.translation()[1];
+
   //CRが存在するMinMaxTimeを計算し、CR凸包のためのサンプリングタイムを決定
-  double tmpMin, tmpMax;
   std::vector<std::vector<double> > samplingTime = std::vector<std::vector<double> >{std::vector<double>(), std::vector<double>(), std::vector<double>()};//0...x, 1...y, 2...merge
+  std::vector<double> extTime{0, 0};
   for (int i=0; i<2; i++) {
-    tmpMin = tmin, tmpMax = 20;
-    if (calcCRMinMaxTime(tmpMin, tmpMax, 0.001, omega, cp[i], zmpMin[i], zmpv[i], tmin, vmax[i], swingPose.translation()[i])) {
-      samplingTime[i].push_back(tmpMin+0.001);
-      samplingTime[i].push_back(tmpMax-0.001);
+    double tmpMin_zmpMin, tmpMax_zmpMin, tmpMin_zmpMax, tmpMax_zmpMax;
+    tmpMin_zmpMin = tmpMin_zmpMax = tmin, tmpMax_zmpMin = tmpMax_zmpMax = 20;
+    double distance_zmpMin = calcCRMinMaxTime(tmpMin_zmpMin, tmpMax_zmpMin, 0.001, omega, cp[i], zmpMin[i], zmpv[i], tmin, vmax[i], swingPose.translation()[i]);
+    double distance_zmpMax = calcCRMinMaxTime(tmpMin_zmpMax, tmpMax_zmpMax, 0.001, omega, cp[i], zmpMax[i], zmpv[i], tmin, vmax[i], swingPose.translation()[i]);
+    if (distance_zmpMin > 0 && distance_zmpMax > 0) {
+      //CRない
+      if (distance_zmpMin < distance_zmpMax) {
+        extTime[i] = tmpMin_zmpMin;
+      } else {
+        extTime[i] = tmpMin_zmpMax;
+      }
     }
-    tmpMin = tmin, tmpMax = 20;
-    if (calcCRMinMaxTime(tmpMin, tmpMax, 0.001, omega, cp[i], zmpMax[i], zmpv[i], tmin, vmax[i], swingPose.translation()[i])) {
-      samplingTime[i].push_back(tmpMin+0.001);
-      samplingTime[i].push_back(tmpMax-0.001);
+    if (distance_zmpMin == 0) {
+      samplingTime[i].push_back(tmpMin_zmpMin);
+      samplingTime[i].push_back(tmpMax_zmpMin);
     }
+    if (distance_zmpMax == 0) {
+      samplingTime[i].push_back(tmpMin_zmpMax);
+      samplingTime[i].push_back(tmpMax_zmpMax);
+    }
+
     if (fcp(tmin, omega, cp[i], zmpMax[i], zmpv[i]) < swingPose.translation()[i] && swingPose.translation()[i] < fcp(tmin, omega, cp[i], zmpMin[i], zmpv[i])) { //zmpMinMax反転するので注意
       samplingTime[i].push_back(tmin);
     }
-    if (fcp(maxTime, omega, cp[i], zmpMax[i], zmpv[i]) < fsw(maxTime, tmin, vmax[i], swingPose.translation()[i]) && fsw(maxTime, tmin, -vmax[i], swingPose.translation()[i]) < fcp(tmin, omega, cp[i], zmpMin[i], zmpv[i])) {
+    if (fcp(maxTime, omega, cp[i], zmpMax[i], zmpv[i]) < fsw(maxTime, tmin, vmax[i], swingPose.translation()[i]) && fsw(maxTime, tmin, -vmax[i], swingPose.translation()[i]) < fcp(maxTime, omega, cp[i], zmpMin[i], zmpv[i])) {
       samplingTime[i].push_back(maxTime);
     }
     std::sort(samplingTime[i].begin(), samplingTime[i].end());
+  }
+
+  //CRない時
+  if (extTime[0] != 0 || extTime[1] != 0) {
+    return false;
   }
 
   if(samplingTime[0].size() < 2 || samplingTime[1].size() < 2) {
@@ -1001,8 +1026,8 @@ void FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
     std::cout << samplingTime[0].size() << " " << samplingTime[1].size() << std::endl;
   }
 
-  tmpMin = std::max(samplingTime[0][0], samplingTime[1][0]);
-  tmpMax = std::min(samplingTime[0].back(), samplingTime[1].back());
+  double tmpMin = std::max(samplingTime[0][0], samplingTime[1][0]);
+  double tmpMax = std::min(samplingTime[0].back(), samplingTime[1].back());
   for (int i = 0; i < 2; i++) {
     for (int j = 0; j < samplingTime[i].size(); j++) {
       if (tmpMin <= samplingTime[i][j] && samplingTime[i][j] <= tmpMax) samplingTime[2].push_back(samplingTime[i][j]);
@@ -1013,6 +1038,11 @@ void FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
     samplingTime[2].push_back(tmpMin + (tmpMax - tmpMin) * double(i) / 4.0);
   }
   std::sort(samplingTime[2].begin(), samplingTime[2].end());
+
+  debugData.cpViewerLog[20] = maxTime;
+  for (int i = 0; i < samplingTime[1].size(); i++) {
+    debugData.cpViewerLog[21+i] = samplingTime[1][i];
+  }
 
   //CR凸包を計算
   std::vector<cv::Point2f> cpList;
@@ -1049,45 +1079,55 @@ void FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
   for (int i=0; i<hull.size(); i++) {
     reachableCaptureRegionHull[i] = supportPoseHorizontal * cnoid::Vector3(hull[i].x, hull[i].y, 0); //座標系戻す
   }
+
+  return true;
 }
 
 //ニュートン法によりminmaxtimeを計算
-bool FootStepGenerator::calcCRMinMaxTime(double& minTime, double& maxTime, double delta, double omega, double cp, double zmp, double zmpv, double tmin, double vmax, double sw) const{
-  double tmpTime = tmin;
+double FootStepGenerator::calcCRMinMaxTime(double& minTime, double& maxTime, double delta, double omega, double cp, double zmp, double zmpv, double tmin, double vmax, double sw) const{
+  double tmpTime;
   if (cp < zmp + zmpv/omega) { //fcpが増加していくようにする
     cp = -cp;
     zmp = -zmp;
     zmpv = -zmpv;
     sw = -sw;
   }
-  if (sw > fcp(tmin, omega, cp, zmp, zmpv)) {
-    while (fsw(tmpTime, tmin, -vmax, sw) - fcp(tmpTime, omega, cp, zmp, zmpv) > delta) {
-      double dx = dfsw(tmpTime, -vmax) - dfcp(tmpTime, omega, cp, zmp, zmpv);
-      if (dx > 0) {
-        return false;
-      }
-      tmpTime = tmpTime - (fsw(tmpTime, tmin, -vmax, sw) - fcp(tmpTime, omega, cp, zmp, zmpv))/dx;
-    }
-  } else {
-    while (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw) > delta) {
+  if (sw > fcp(tmin, omega, cp, zmp, zmpv)) { //t=tminですでにswのほうが前にある場合
+    tmpTime = maxTime;
+    do{
+      double dx = dfcp(tmpTime, omega, cp, zmp, zmpv) - dfsw(tmpTime, -vmax);
+      tmpTime = tmpTime - (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, -vmax, sw))/dx;
+    } while (!(fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, -vmax, sw) > 0 && fcp(tmpTime - delta, omega, cp, zmp, zmpv) - fsw(tmpTime - delta, tmin, -vmax, sw) < 0));
+    minTime = tmpTime;
+
+    tmpTime = maxTime;
+    do{
       double dx = dfcp(tmpTime, omega, cp, zmp, zmpv) - dfsw(tmpTime, vmax);
-      if (dx > 0) {
-        return false;
-      }
       tmpTime = tmpTime - (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw))/dx;
+    } while (!(fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw) > 0 && fcp(tmpTime - delta, omega, cp, zmp, zmpv) - fsw(tmpTime - delta, tmin, vmax, sw) < 0));
+    maxTime = tmpTime - delta;
+  } else {
+    double extTime = calc_extTime(omega, cp, zmp, zmpv, vmax);
+    if (fcp(extTime, omega, cp, zmp, zmpv) - fsw(extTime, tmin, vmax, sw) < 0 && extTime > tmin) {
+      tmpTime = tmin;
+      do{
+        double dx = dfcp(tmpTime, omega, cp, zmp, zmpv) - dfsw(tmpTime, vmax);
+        tmpTime = tmpTime - (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw))/dx;
+      } while (!(fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw) > 0 && fcp(tmpTime + delta, omega, cp, zmp, zmpv) - fsw(tmpTime + delta, tmin, vmax, sw) < 0)); //ここだけはf(tmin)>0が確定しているので本当はdo_while文でなくても良い
+      minTime = tmpTime + delta;
+
+      tmpTime = std::max(extTime + 1.0, maxTime);
+      do{
+        double dx = dfcp(tmpTime, omega, cp, zmp, zmpv) - dfsw(tmpTime, vmax);
+        tmpTime = tmpTime - (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw))/dx;
+      } while (!(fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw) > 0 && fcp(tmpTime - delta, omega, cp, zmp, zmpv) - fsw(tmpTime - delta, tmin, vmax, sw) < 0));
+      maxTime = tmpTime - delta;
+    } else { //reachableCRが存在しない
+      minTime = maxTime = std::max(tmin, extTime);
+      return fcp(extTime, omega, cp, zmp, zmpv) - fsw(extTime, tmin, vmax, sw);
     }
   }
-  minTime = tmpTime;
-  tmpTime = maxTime;
-  while (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw) > delta) {
-    double dx = dfcp(tmpTime, omega, cp, zmp, zmpv) - dfsw(tmpTime, vmax);
-    if (dx < 0) {
-      return false;
-    }
-    tmpTime = tmpTime - (fcp(tmpTime, omega, cp, zmp, zmpv) - fsw(tmpTime, tmin, vmax, sw))/dx;
-  }
-  maxTime = tmpTime;
-  return true;
+  return 0;
 }
 
 // 早づきしたらremainTimeが0になるまで今の位置で止める.

@@ -7,7 +7,7 @@
 class FootStepGenerator{
 public:
   // FootStepGeneratorでしか使わないパラメータ
-  double defaultStepTime = 0.8; // [s]. goPosやgoVelocityのときに自動生成されるfootstepの一歩の時間. 0より大きい
+  double defaultStepTime = 1.0; // [s]. goPosやgoVelocityのときに自動生成されるfootstepの一歩の時間. 0より大きい
   double defaultStrideLimitationTheta = 0.261799; // [rad]. goPosやgoVelocityのときに自動生成されるfootstepの上下限. 支持脚相対. default 15[rad].
   std::vector<std::vector<cnoid::Vector3> > defaultStrideLimitationHull = std::vector<std::vector<cnoid::Vector3> >{std::vector<cnoid::Vector3>{cnoid::Vector3(0.15,-0.18,0),cnoid::Vector3(-0.15,-0.18,0),cnoid::Vector3(-0.15,-0.45,0),cnoid::Vector3(0.15,-0.45,0)},std::vector<cnoid::Vector3>{cnoid::Vector3(0.15,0.45,0),cnoid::Vector3(-0.15,0.45,0),cnoid::Vector3(-0.15,0.18,0),cnoid::Vector3(0.15,0.18,0)}}; // 要素数2. 0: rleg用, 1: lleg用. 単位[m]. goPosやgoVelocityのときに自動生成されるfootstepの、遊脚のエンドエフェクタの着地位置の範囲の凸包. 反対の脚のEndEffector frame(Z軸は鉛直)で表現した着地可能領域(自己干渉やIKの考慮が含まれる). あったほうが扱いやすいのでZ成分があるが、Z成分は0でないといけない. 凸形状で,上から見て半時計回り. thetaとは独立に評価されるので、defaultStrideLimitationThetaだけ傾いていても大丈夫なようにせよ
   double defaultDoubleSupportRatio = 0.15; // defaultStepTimeのうちの、両足支持期の時間の割合. 0より大きく1未満
@@ -135,13 +135,13 @@ protected:
   void modifyFootSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, // input & output
                        GaitParam::DebugData& debugData, //for Log
                        const GaitParam& gaitParam) const;
-  void calcReachableCaptureRegion(std::vector<cnoid::Vector3>& reachableCaptureRegionHull, const cnoid::Vector3& actDCM, const GaitParam::FootStepNodes& footstepNode, const std::vector<cpp_filters::TwoPointInterpolatorSE3>& genCoords, const double& omega, const double& minTime, const double& maxTime, const double& wheelVel) const;
+  bool calcReachableCaptureRegion(std::vector<cnoid::Vector3>& reachableCaptureRegionHull, const cnoid::Vector3& actDCM, const GaitParam::FootStepNodes& footstepNode, const std::vector<cpp_filters::TwoPointInterpolatorSE3>& genCoords, const double& omega, const double& minTime, const double& maxTime, const double& wheelVel, GaitParam::DebugData& debugData) const;
   double fcp(double t, double omega, double cp, double zmp, double zmpv) const {return std::exp(omega * t) * (cp - (zmp + zmpv/omega)) + (zmp + zmpv * t + zmpv/omega);};
   double fsw(double t, double tmin, double vmax, double sw) const {return (t - tmin) * vmax + sw;};
   double dfcp(double t, double omega, double cp, double zmp, double zmpv) const {return omega * std::exp(omega * t) * (cp - (zmp + zmpv/omega)) + zmpv;};
   double dfsw(double t, double vmax) const {return vmax;};
-  double calc_df(double omega, double cp, double zmp, double zmpv, double vmax) const {return std::log((vmax-zmpv)/(omega*(cp - (zmp + zmpv / omega)))) / omega;};
-  bool calcCRMinMaxTime(double& minTime, double& maxTime, double delta, double omega, double cp, double zmp, double zmpv, double tmin, double vmax, double sw) const;
+  double calc_extTime(double omega, double cp, double zmp, double zmpv, double vmax) const {return std::log((vmax-zmpv)/(omega*(cp - (zmp + zmpv / omega)))) / omega;}; // vmax > zmpv が必要
+  double calcCRMinMaxTime(double& minTime, double& maxTime, double delta, double omega, double cp, double zmp, double zmpv, double tmin, double vmax, double sw) const;
 
   // footstepNodesList[idx:] idxより先のstepの位置をgenerate frameで(左から)transformだけ動かす
   void transformFutureSteps(std::vector<GaitParam::FootStepNodes>& footstepNodesList, int index, const cnoid::Position& transform/*generate frame*/) const;
