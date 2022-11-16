@@ -139,6 +139,10 @@ RTC::ReturnCode_t AutoStabilizer::onInitialize(){
       std::cerr << "\x1b[31m[" << this->m_profile.instance_name << "] " << "failed to load model[" << fileName << "]" << "\x1b[39m" << std::endl;
       return RTC::RTC_ERROR;
     }
+    if(!robot->rootLink()->isFreeJoint()){
+      std::cerr << "\x1b[31m[" << this->m_profile.instance_name << "] " << "rootLink is not FreeJoint [" << fileName << "]" << "\x1b[39m" << std::endl;
+      return RTC::RTC_ERROR;
+    }
     this->gaitParam_.init(robot);
 
     // generate JointParams
@@ -1009,6 +1013,7 @@ RTC::ReturnCode_t AutoStabilizer::onExecute(RTC::UniqueId ec_id){
   this->mode_.update(this->dt_);
   this->gaitParam_.update(this->dt_);
   this->refToGenFrameConverter_.update(this->dt_);
+  this->fullbodyIKSolver_.update(this->dt_);
 
   if(this->mode_.isABCRunning()) {
     if(this->mode_.isSyncToABCInit()){ // startAutoBalancer直後の初回. 内部パラメータのリセット
@@ -1018,6 +1023,7 @@ RTC::ReturnCode_t AutoStabilizer::onExecute(RTC::UniqueId ec_id){
       this->externalForceHandler_.reset();
       this->footStepGenerator_.reset();
       this->impedanceController_.reset();
+      this->fullbodyIKSolver_.reset();
     }
     AutoStabilizer::execAutoStabilizer(this->mode_, this->gaitParam_, this->dt_, this->footStepGenerator_, this->legCoordsGenerator_, this->refToGenFrameConverter_, this->actToGenFrameConverter_, this->impedanceController_, this->stabilizer_,this->externalForceHandler_, this->fullbodyIKSolver_, this->legManualController_, this->cmdVelGenerator_);
   }
@@ -1413,8 +1419,18 @@ bool AutoStabilizer::setAutoStabilizerParam(const OpenHRP::AutoStabilizerService
     }
   }
 
+  this->footStepGenerator_.legCollisionMargin = std::max(i_param.leg_collision_margin, 0.0);
   this->footStepGenerator_.defaultStepTime = std::max(i_param.default_step_time, 0.01);
-  this->footStepGenerator_.defaultStrideLimitationTheta = std::max(i_param.default_stride_limitation_theta, 0.0);
+  if(i_param.default_stride_limitation_max_theta.length() == NUM_LEGS){
+    for(int i=0;i<NUM_LEGS;i++){
+      this->footStepGenerator_.defaultStrideLimitationMaxTheta[i] = std::max(i_param.default_stride_limitation_max_theta[i], 0.0);
+    }
+  }
+  if(i_param.default_stride_limitation_min_theta.length() == NUM_LEGS){
+    for(int i=0;i<NUM_LEGS;i++){
+      this->footStepGenerator_.defaultStrideLimitationMinTheta[i] = std::min(i_param.default_stride_limitation_min_theta[i], 0.0);
+    }
+  }
   if(i_param.default_stride_limitation.length() == NUM_LEGS){
     for(int i=0;i<NUM_LEGS;i++){
       std::vector<cnoid::Vector3> vertices;
@@ -1438,6 +1454,16 @@ bool AutoStabilizer::setAutoStabilizerParam(const OpenHRP::AutoStabilizerService
       for(int j=0;j<i_param.safe_leg_hull[i].length();j++) vertices.emplace_back(i_param.safe_leg_hull[i][j][0],i_param.safe_leg_hull[i][j][1],0.0);
       vertices = mathutil::calcConvexHull(vertices);
       if(vertices.size() > 0) this->footStepGenerator_.safeLegHull[i] = vertices;
+    }
+  }
+  if(i_param.overwritable_stride_limitation_max_theta.length() == NUM_LEGS){
+    for(int i=0;i<NUM_LEGS;i++){
+      this->footStepGenerator_.overwritableStrideLimitationMaxTheta[i] = std::max(i_param.overwritable_stride_limitation_max_theta[i], 0.0);
+    }
+  }
+  if(i_param.overwritable_stride_limitation_min_theta.length() == NUM_LEGS){
+    for(int i=0;i<NUM_LEGS;i++){
+      this->footStepGenerator_.overwritableStrideLimitationMinTheta[i] = std::min(i_param.overwritable_stride_limitation_min_theta[i], 0.0);
     }
   }
   if(!this->mode_.isABCRunning() || this->gaitParam_.isStatic()){
@@ -1503,6 +1529,13 @@ bool AutoStabilizer::setAutoStabilizerParam(const OpenHRP::AutoStabilizerService
           this->stabilizer_.swingDgain[i][j] = std::min(std::max(i_param.swing_dgain[i][j], 0.0), 100.0);
         }
       }
+    }
+  }
+
+  if(i_param.dq_weight.length() == this->fullbodyIKSolver_.dqWeight.size()){
+    for(int i=0;i<this->fullbodyIKSolver_.dqWeight.size();i++){
+      double value = std::max(0.01, i_param.dq_weight[i]);
+      if(value != this->fullbodyIKSolver_.dqWeight[i].getGoal()) this->fullbodyIKSolver_.dqWeight[i].setGoal(value, 2.0); // 2秒で遷移
     }
   }
 
@@ -1605,8 +1638,16 @@ bool AutoStabilizer::getAutoStabilizerParam(OpenHRP::AutoStabilizerService::Auto
     i_param.graspless_manip_time_const[i] = this->cmdVelGenerator_.graspLessManipTimeConst[i];
   }
 
+  i_param.leg_collision_margin = this->footStepGenerator_.legCollisionMargin;
   i_param.default_step_time = this->footStepGenerator_.defaultStepTime;
-  i_param.default_stride_limitation_theta = this->footStepGenerator_.defaultStrideLimitationTheta;
+  i_param.default_stride_limitation_max_theta.length(NUM_LEGS);
+  for(int i=0;i<NUM_LEGS;i++){
+    i_param.default_stride_limitation_max_theta[i] = this->footStepGenerator_.defaultStrideLimitationMaxTheta[i];
+  }
+  i_param.default_stride_limitation_min_theta.length(NUM_LEGS);
+  for(int i=0;i<NUM_LEGS;i++){
+    i_param.default_stride_limitation_min_theta[i] = this->footStepGenerator_.defaultStrideLimitationMinTheta[i];
+  }
   i_param.default_stride_limitation.length(NUM_LEGS);
   for(int i=0;i<NUM_LEGS;i++){
     i_param.default_stride_limitation[i].length(this->footStepGenerator_.defaultStrideLimitationHull[i].size());
@@ -1631,6 +1672,14 @@ bool AutoStabilizer::getAutoStabilizerParam(OpenHRP::AutoStabilizerService::Auto
       i_param.safe_leg_hull[i][j].length(2);
       for(int k=0;k<2;k++) i_param.safe_leg_hull[i][j][k] = this->footStepGenerator_.safeLegHull[i][j][k];
     }
+  }
+  i_param.overwritable_stride_limitation_max_theta.length(NUM_LEGS);
+  for(int i=0;i<NUM_LEGS;i++){
+    i_param.overwritable_stride_limitation_max_theta[i] = this->footStepGenerator_.overwritableStrideLimitationMaxTheta[i];
+  }
+  i_param.overwritable_stride_limitation_min_theta.length(NUM_LEGS);
+  for(int i=0;i<NUM_LEGS;i++){
+    i_param.overwritable_stride_limitation_min_theta[i] = this->footStepGenerator_.overwritableStrideLimitationMinTheta[i];
   }
   i_param.overwritable_stride_limitation.length(NUM_LEGS);
   for(int i=0;i<NUM_LEGS;i++){
@@ -1690,6 +1739,11 @@ bool AutoStabilizer::getAutoStabilizerParam(OpenHRP::AutoStabilizerService::Auto
       i_param.swing_pgain[i][j] = this->stabilizer_.swingPgain[i][j];
       i_param.swing_dgain[i][j] = this->stabilizer_.swingDgain[i][j];
     }
+  }
+
+  i_param.dq_weight.length(this->fullbodyIKSolver_.dqWeight.size());
+  for(int i=0;i<this->fullbodyIKSolver_.dqWeight.size();i++){
+    i_param.dq_weight[i] = this->fullbodyIKSolver_.dqWeight[i].getGoal();
   }
 
   return true;
