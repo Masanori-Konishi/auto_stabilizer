@@ -644,6 +644,8 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   //displacement[2] = 0.0;
   this->transformFutureSteps(footstepNodesList, 0, displacement);
   footstepNodesList[0].remainTime = newTime;
+  debugData.cpViewerLog[20] = newTime;
+  debugData.cpViewerLog[21] = gaitParam.elapsedTime;
 
   //landingHeightから受け取った値を用いて着地姿勢を変更
   if (gaitParam.relLandingHeight > -1e+10) {
@@ -1038,11 +1040,6 @@ bool FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
     samplingTime[2].push_back(tmpMin + (tmpMax - tmpMin) * double(i) / 4.0);
   }
   std::sort(samplingTime[2].begin(), samplingTime[2].end());
-
-  debugData.cpViewerLog[20] = maxTime;
-  for (int i = 0; i < samplingTime[1].size(); i++) {
-    debugData.cpViewerLog[21+i] = samplingTime[1][i];
-  }
 
   //CR凸包を計算
   std::vector<cv::Point2f> cpList;

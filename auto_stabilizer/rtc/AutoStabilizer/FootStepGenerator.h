@@ -14,9 +14,9 @@ public:
   double defaultStepHeight = 0.05; // goPosやgoVelocityのときに自動生成されるfootstepの足上げ高さ[m]. 0以上
   unsigned int goVelocityStepNum = 6; // goVelocity中にfootStepNodesListの将来の何ステップぶんを常に生成するか. 1以上
   bool isModifyFootSteps = true; // 着地位置時間修正を行うかどうか
-  double overwritableRemainTime = 0.2; // 0以上. 単位[s]. 次indexまでの残り時間がこの値を下回っている場合、着地位置時間修正を行わない. DOWN_PHASEのときにfootstepNodesList[0]のdstCoordsはgenCoordsよりも高い位置に変更されることがないようにするために、LegCoordsGeneratorのdelayTimeOffset以上の値にせよ.
+  double overwritableRemainTime = 0.25; // 0以上. 単位[s]. 次indexまでの残り時間がこの値を下回っている場合、着地位置時間修正を行わない. DOWN_PHASEのときにfootstepNodesList[0]のdstCoordsはgenCoordsよりも高い位置に変更されることがないようにするために、LegCoordsGeneratorのdelayTimeOffset以上の値にせよ.
   double overwritableMinTime = 0.3; // 0より大きい. 単位[s]. 次indexまでの残り時間がこの値を下回るようには着地時間修正を行わない. もともと下回っている場合には、その値を下回るようには着地時間修正を行わない. これが無いと脚を空中から下ろす時間が足りなくて急激に動く
-  double overwritableMinStepTime = 0.6; // 0より大きい. 単位[s]. 現index開始時からの経過時間がこの値を下回るようには着地時間修正を行わない. もともと下回っている場合には、その値を下回るようには着地時間修正を行わない. これが無いと脚を地面から上げて下ろす時間が足りなくて急激に動く
+  double overwritableMinStepTime = 0.7; // 0より大きい. 単位[s]. 現index開始時からの経過時間がこの値を下回るようには着地時間修正を行わない. もともと下回っている場合には、その値を下回るようには着地時間修正を行わない. これが無いと脚を地面から上げて下ろす時間が足りなくて急激に動く
   double overwritableMaxStepTime = 2.0; // overwritableMinStepTimeより大きい. 単位[s]. 現index開始時からの経過時間がこの値を上回るようには着地時間修正を行わない. もともと上回っている場合には、その値を上回るようには着地時間修正を行わない. これが無いと、DCMが片足のcopとほぼ一致しているときに、ずっと脚を浮かせたまま止まってしまう.
   double overwritableMaxSwingVelocity = 1.0; // 0より大きい. 単位[m/s]. 今の遊脚の位置のXYから着地位置のXYまで移動するための速度がこの値を上回るようには着地位置時間修正を行わない
   std::vector<std::vector<cnoid::Vector3> > safeLegHull = std::vector<std::vector<cnoid::Vector3> >(2, std::vector<cnoid::Vector3>{cnoid::Vector3(0.075,0.055,0.0),cnoid::Vector3(-0.075,0.055,0.0),cnoid::Vector3(-0.075,-0.055,0.0),cnoid::Vector3(0.075,-0.055,0.0)}); // 要素数2. rleg: 0. lleg: 1. leg frame. 単位[m]. 凸形状で,上から見て半時計回り. Z成分はあったほうが計算上扱いやすいからありにしているが、0でなければならない. 大きさはgaitParam.legHull以下
