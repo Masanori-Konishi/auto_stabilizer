@@ -14,6 +14,8 @@ public:
 
   std::vector<std::vector<double> > supportPgain = std::vector<std::vector<double> >(2); // 要素数2. [rleg, lleg]. rootLinkから各endeffectorまでの各関節のゲイン. 0~100
   std::vector<std::vector<double> > supportDgain = std::vector<std::vector<double> >(2); // 要素数2. [rleg, lleg]. rootLinkから各endeffectorまでの各関節のゲイン. 0~100
+  std::vector<std::vector<double> > landingSupportPgain = std::vector<std::vector<double> >(2); // 要素数2. [rleg, lleg]. rootLinkから各endeffectorまでの各関節のゲイン. 0~100
+  std::vector<std::vector<double> > landingSupportDgain = std::vector<std::vector<double> >(2); // 要素数2. [rleg, lleg]. rootLinkから各endeffectorまでの各関節のゲイン. 0~100
   std::vector<std::vector<double> > landingPgain = std::vector<std::vector<double> >(2); // 要素数2. [rleg, lleg]. rootLinkから各endeffectorまでの各関節のゲイン. 0~100
   std::vector<std::vector<double> > landingDgain = std::vector<std::vector<double> >(2); // 要素数2. [rleg, lleg]. rootLinkから各endeffectorまでの各関節のゲイン. 0~100
   std::vector<std::vector<double> > swingPgain = std::vector<std::vector<double> >(2); // 要素数2. [rleg, lleg]. rootLinkから各endeffectorまでの各関節のゲイン. 0~100
@@ -33,12 +35,14 @@ public:
         // swingPgain[i] = {5,10,10,5,0.1,0.1};
         // swingDgain[i] = {10,20,20,10,10,10};
         // 下はもとのauto_stabilizerの値. ゲインが低すぎて、go-velocity 0 0 0のときに前に進んでいってしまう
-        supportPgain[i] = {5,15,10,5,0.2,0.2};
-        supportDgain[i] = {10,20,20,10,5,5};
+        supportPgain[i] = {100,100,100,100,0.2,0.2};
+        supportDgain[i] = {100,100,100,100,5,5};
+        landingSupportPgain[i] = {5,15,10,5,0.2,0.2};
+        landingSupportDgain[i] = {10,20,20,10,5,5};
         landingPgain[i] = {5,15,1,1,0.2,0.2};
         landingDgain[i] = {10,10,10,10,5,5};
-        swingPgain[i] = {5,30,20,10,5,5};
-        swingDgain[i] = {10,30,20,20,30,30};
+        swingPgain[i] = {100,100,100,100,5,5};
+        swingDgain[i] = {100,100,100,100,30,30};
         //supportPgain[i] = {90,90,50,50,0.2,0.2};
         //supportDgain[i] = {90,90,90,90,1,1};
         //landingPgain[i] = {90,90,5,5,0.2,0.2};
@@ -48,6 +52,8 @@ public:
       }else{
         supportPgain[i].resize(jointPath.numJoints(), 100.0);
         supportDgain[i].resize(jointPath.numJoints(), 100.0);
+        landingSupportPgain[i].resize(jointPath.numJoints(), 100.0);
+        landingSupportDgain[i].resize(jointPath.numJoints(), 100.0);
         landingPgain[i].resize(jointPath.numJoints(), 100.0);
         landingDgain[i].resize(jointPath.numJoints(), 100.0);
         swingPgain[i].resize(jointPath.numJoints(), 100.0);
