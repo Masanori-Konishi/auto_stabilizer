@@ -33,18 +33,18 @@ public:
         // swingPgain[i] = {5,10,10,5,0.1,0.1};
         // swingDgain[i] = {10,20,20,10,10,10};
         // 下はもとのauto_stabilizerの値. ゲインが低すぎて、go-velocity 0 0 0のときに前に進んでいってしまう
-        //supportPgain[i] = {5,15,10,5,0.2,0.2};
-        //supportDgain[i] = {10,20,20,10,5,5};
-        //landingPgain[i] = {5,15,1,1,0.2,0.2};
-        //landingDgain[i] = {10,10,10,10,5,5};
-        //swingPgain[i] = {5,30,20,10,5,5};
-        //swingDgain[i] = {10,30,20,20,30,30};
-        supportPgain[i] = {90,90,50,50,0.2,0.2};
-        supportDgain[i] = {90,90,90,90,1,1};
-        landingPgain[i] = {90,90,5,5,0.2,0.2};
-        landingDgain[i] = {90,90,20,20,1,1};
-        swingPgain[i] = {90,90,90,90,90,90};
-        swingDgain[i] = {90,90,90,90,90,90};
+        supportPgain[i] = {5,15,10,5,0.2,0.2};
+        supportDgain[i] = {10,20,20,10,5,5};
+        landingPgain[i] = {5,15,1,1,0.2,0.2};
+        landingDgain[i] = {10,10,10,10,5,5};
+        swingPgain[i] = {5,30,20,10,5,5};
+        swingDgain[i] = {10,30,20,20,30,30};
+        //supportPgain[i] = {90,90,50,50,0.2,0.2};
+        //supportDgain[i] = {90,90,90,90,1,1};
+        //landingPgain[i] = {90,90,5,5,0.2,0.2};
+        //landingDgain[i] = {90,90,20,20,1,1};
+        //swingPgain[i] = {90,90,90,90,90,90};
+        //swingDgain[i] = {90,90,90,90,90,90};
       }else{
         supportPgain[i].resize(jointPath.numJoints(), 100.0);
         supportDgain[i].resize(jointPath.numJoints(), 100.0);
