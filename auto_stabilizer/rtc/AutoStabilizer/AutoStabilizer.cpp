@@ -624,6 +624,39 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
     else gaitParam.abcEETargetPose[i] = gaitParam.icEETargetPose[i];
   }
 
+  //TODO tmp 遊脚補正
+  //if(gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[0].stopCurrentPosition[LLEG]) { //右足支持期
+  //  gaitParam.genCoordsOffsetLDst = cnoid::Vector3(-0.05, 0, 0);
+  //} else {
+  //  gaitParam.genCoordsOffsetLDst = cnoid::Vector3(0, 0, 0);
+  //}
+  //if(gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].stopCurrentPosition[RLEG]) { //左足支持期
+  //  gaitParam.genCoordsOffsetRDst = cnoid::Vector3(-0.05, 0, 0);
+  //} else {
+  //  gaitParam.genCoordsOffsetRDst = cnoid::Vector3(0, 0, 0);
+  //}
+  //gaitParam.genCoordsOffsetR = 0.99 * gaitParam.genCoordsOffsetR + 0.01 * gaitParam.genCoordsOffsetRDst;
+  //gaitParam.genCoordsOffsetL = 0.99 * gaitParam.genCoordsOffsetL + 0.01 * gaitParam.genCoordsOffsetLDst;
+
+
+  if(gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].stopCurrentPosition[RLEG]) { //左足支持期
+    gaitParam.genCoordsOffsetR -= 0.1 * (gaitParam.actEEPose[RLEG].translation() - gaitParam.genCoords[0].value().translation());
+    gaitParam.genCoordsOffsetR[2] = 0;
+  } else {
+    gaitParam.genCoordsOffsetR = gaitParam.genCoordsOffsetR * 0.97;
+  }
+  if(gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[0].stopCurrentPosition[LLEG]) { //右足支持期
+    gaitParam.genCoordsOffsetL -= 0.1 * (gaitParam.actEEPose[LLEG].translation() - gaitParam.genCoords[1].value().translation());
+    gaitParam.genCoordsOffsetL[2] = 0;
+  } else {
+    gaitParam.genCoordsOffsetL = gaitParam.genCoordsOffsetL * 0.97;
+  }
+
+
+  gaitParam.abcEETargetPose[0].translation() += gaitParam.genCoordsOffsetR;
+  gaitParam.abcEETargetPose[1].translation() += gaitParam.genCoordsOffsetL;
+
+
   // Stabilizer
   if(mode.isSyncToStopSTInit()){ // stopST直後の初回
     gaitParam.stOffsetRootRpy.setGoal(cnoid::Vector3::Zero(),mode.remainTime());

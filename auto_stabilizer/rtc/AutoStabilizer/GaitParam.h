@@ -138,6 +138,10 @@ public:
 
   // LegCoordsGenerator
   std::vector<cpp_filters::TwoPointInterpolatorSE3> genCoords = std::vector<cpp_filters::TwoPointInterpolatorSE3>(NUM_LEGS, cpp_filters::TwoPointInterpolatorSE3(cnoid::Position::Identity(),cnoid::Vector6::Zero(),cnoid::Vector6::Zero(),cpp_filters::HOFFARBIB)); // 要素数2. rleg: 0. lleg: 1. generate frame. 現在の位置
+  cnoid::Vector3 genCoordsOffsetR = cnoid::Vector3::Zero();
+  cnoid::Vector3 genCoordsOffsetL = cnoid::Vector3::Zero();
+  cnoid::Vector3 genCoordsOffsetRDst = cnoid::Vector3::Zero();
+  cnoid::Vector3 genCoordsOffsetLDst = cnoid::Vector3::Zero();
   std::vector<footguidedcontroller::LinearTrajectory<cnoid::Vector3> > refZmpTraj = {footguidedcontroller::LinearTrajectory<cnoid::Vector3>(cnoid::Vector3::Zero(),cnoid::Vector3::Zero(),0.0)}; // 要素数1以上. generate frame. footstepNodesListを単純に線形補間して計算される現在の目標zmp軌道
 
   cnoid::Vector3 genCog; // generate frame. abcで計算された目標COM
