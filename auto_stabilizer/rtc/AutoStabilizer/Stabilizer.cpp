@@ -5,7 +5,7 @@
 #include <cnoid/src/Body/InverseDynamics.h>
 
 void Stabilizer::initStabilizerOutput(const GaitParam& gaitParam,
-                                      cpp_filters::TwoPointInterpolator<cnoid::Vector3>& o_stOffsetRootRpy, cnoid::Vector3& o_stTargetZmp, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoPGainPercentage, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoDGainPercentage) const{
+                                      cpp_filters::TwoPointInterpolator<cnoid::Vector3>& o_stOffsetRootRpy, cnoid::Vector3& o_stTargetZmp, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoPGainPercentage, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoDGainPercentage, std::vector<double>& actRobotJointPrevq, std::vector<double>& actRobotJointPrevdq) const{
 
   o_stOffsetRootRpy.reset(cnoid::Vector3::Zero());
   o_stTargetZmp = gaitParam.refZmpTraj[0].getStart();
@@ -13,10 +13,14 @@ void Stabilizer::initStabilizerOutput(const GaitParam& gaitParam,
     o_stServoPGainPercentage[i].reset(100.0);
     o_stServoDGainPercentage[i].reset(100.0);
   }
+  for(int i=0;i<gaitParam.actRobot->numJoints();i++){
+    actRobotJointPrevq[i] = 0;
+    actRobotJointPrevdq[i] = 0;
+  }
 }
 
 bool Stabilizer::execStabilizer(const GaitParam& gaitParam, double dt, bool useActState,
-                                cnoid::BodyPtr& actRobotTqc, cpp_filters::TwoPointInterpolator<cnoid::Vector3>& o_stOffsetRootRpy, cnoid::Position& o_stTargetRootPose, cnoid::Vector3& o_stTargetZmp, std::vector<cnoid::Vector6>& o_stEETargetWrench, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoPGainPercentage, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoDGainPercentage) const{
+                                cnoid::BodyPtr& actRobotTqc, cpp_filters::TwoPointInterpolator<cnoid::Vector3>& o_stOffsetRootRpy, cnoid::Position& o_stTargetRootPose, cnoid::Vector3& o_stTargetZmp, std::vector<cnoid::Vector6>& o_stEETargetWrench, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoPGainPercentage, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoDGainPercentage, std::vector<double>& actRobotJointPrevq, std::vector<double>& actRobotJointPrevdq) const{
   // - root attitude control
   // - 現在のactual重心位置から、目標ZMPを計算
   // - 目標ZMPを満たすように目標足裏反力を計算
@@ -41,7 +45,7 @@ bool Stabilizer::execStabilizer(const GaitParam& gaitParam, double dt, bool useA
   if(useActState){
     // 目標反力を満たすように重力補償+仮想仕事の原理
     this->calcTorque(dt, gaitParam, o_stEETargetWrench, // input
-                     actRobotTqc, o_stServoPGainPercentage, o_stServoDGainPercentage); // output
+                     actRobotTqc, o_stServoPGainPercentage, o_stServoDGainPercentage, actRobotJointPrevq, actRobotJointPrevdq); // output
   }else{
     for(int i=0;i<actRobotTqc->numJoints();i++) actRobotTqc->joint(i)->u() = 0.0;
     for(int i=0;i<actRobotTqc->numJoints();i++){
@@ -285,8 +289,9 @@ bool Stabilizer::calcWrench(const GaitParam& gaitParam, const cnoid::Vector3& tg
 }
 
 bool Stabilizer::calcTorque(double dt, const GaitParam& gaitParam, const std::vector<cnoid::Vector6>& tgtEEWrench /* 要素数EndEffector数. generate座標系. EndEffector origin*/,
-                            cnoid::BodyPtr& actRobotTqc, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoPGainPercentage, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoDGainPercentage) const{
+                            cnoid::BodyPtr& actRobotTqc, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoPGainPercentage, std::vector<cpp_filters::TwoPointInterpolator<double> >& o_stServoDGainPercentage, std::vector<double>& actRobotJointPrevq, std::vector<double>& actRobotJointPrevdq) const{
   // 速度・加速度を考慮しない重力補償
+  double alpha = 1.0 / (2.0 * M_PI * 50.0 * dt + 1);
   actRobotTqc->rootLink()->T() = gaitParam.actRobot->rootLink()->T();
   actRobotTqc->rootLink()->v() = cnoid::Vector3::Zero();
   actRobotTqc->rootLink()->w() = cnoid::Vector3::Zero();
@@ -294,8 +299,10 @@ bool Stabilizer::calcTorque(double dt, const GaitParam& gaitParam, const std::ve
   actRobotTqc->rootLink()->dw() = cnoid::Vector3::Zero();
   for(int i=0;i<actRobotTqc->numJoints();i++){
     actRobotTqc->joint(i)->q() = gaitParam.actRobot->joint(i)->q();
-    actRobotTqc->joint(i)->dq() = 0.0;
-    actRobotTqc->joint(i)->ddq() = 0.0;
+    actRobotTqc->joint(i)->dq() = ((1 - alpha) * (gaitParam.actRobot->joint(i)->q() - actRobotJointPrevq[i]) / dt + alpha * actRobotJointPrevdq[i]);
+    actRobotTqc->joint(i)->ddq() = (actRobotTqc->joint(i)->dq() - actRobotJointPrevdq[i])/dt;
+    actRobotJointPrevdq[i] = actRobotTqc->joint(i)->dq();
+    actRobotJointPrevq[i] = actRobotTqc->joint(i)->q();
   }
   actRobotTqc->calcForwardKinematics(true, true);
   cnoid::calcInverseDynamics(actRobotTqc->rootLink()); // actRobotTqc->joint()->u()に書き込まれる

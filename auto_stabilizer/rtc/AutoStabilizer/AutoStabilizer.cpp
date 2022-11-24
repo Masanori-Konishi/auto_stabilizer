@@ -327,7 +327,7 @@ RTC::ReturnCode_t AutoStabilizer::onInitialize(){
   for(int i=0;i<this->gaitParam_.eeName.size();i++) this->impedanceController_.push_backEE();
 
   // init Stabilizer
-  this->stabilizer_.init(this->gaitParam_, this->gaitParam_.actRobotTqc);
+  this->stabilizer_.init(this->gaitParam_, this->gaitParam_.actRobotTqc, this->gaitParam_.actRobotJointPrevq, this->gaitParam_.actRobotJointPrevdq);
 
   // init FullbodyIKSolver
   this->fullbodyIKSolver_.init(this->gaitParam_.genRobot, this->gaitParam_);
@@ -582,7 +582,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
     legCoordsGenerator.initLegCoords(gaitParam,
                                      gaitParam.refZmpTraj, gaitParam.genCoords);
     stabilizer.initStabilizerOutput(gaitParam,
-                                    gaitParam.stOffsetRootRpy, gaitParam.stTargetZmp, gaitParam.stServoPGainPercentage, gaitParam.stServoDGainPercentage);
+                                    gaitParam.stOffsetRootRpy, gaitParam.stTargetZmp, gaitParam.stServoPGainPercentage, gaitParam.stServoDGainPercentage, gaitParam.actRobotJointPrevq, gaitParam.actRobotJointPrevdq);
   }
 
   // FootOrigin座標系を用いてrefRobotRawをgenerate frameに投影しrefRobotとする
@@ -666,7 +666,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
     }
   }
   stabilizer.execStabilizer(gaitParam, dt, mode.isSTRunning(),
-                            gaitParam.actRobotTqc, gaitParam.stOffsetRootRpy, gaitParam.stTargetRootPose, gaitParam.stTargetZmp, gaitParam.stEETargetWrench, gaitParam.stServoPGainPercentage, gaitParam.stServoDGainPercentage);
+                            gaitParam.actRobotTqc, gaitParam.stOffsetRootRpy, gaitParam.stTargetRootPose, gaitParam.stTargetZmp, gaitParam.stEETargetWrench, gaitParam.stServoPGainPercentage, gaitParam.stServoDGainPercentage, gaitParam.actRobotJointPrevq, gaitParam.actRobotJointPrevdq);
 
   // FullbodyIKSolver
   fullbodyIKSolver.solveFullbodyIK(dt, gaitParam,// input

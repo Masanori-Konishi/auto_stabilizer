@@ -325,7 +325,7 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
       cnoid::Position offsetedPos = mathutil::orientCoordToAxis(gaitParam.genCoords[RLEG].value() * footstepNodesList[0].dstCoords[RLEG].inverse() * footstepNodesList[i-1].dstCoords[RLEG], cnoid::Vector3::UnitZ()); // generate frame. 一つ前のRLEGはこの位置にずれている
       cnoid::Position transform = offsetedPos * origin.inverse(); // generate frame
       if(transform.translation().norm() < this->contactModificationThreshold) transform = cnoid::Position::Identity(); // ズレが大きい場合のみずらす
-      //transform.translation() -= destFootstepOffset;
+      transform.translation() -= destFootstepOffset;
       this->transformFutureSteps(footstepNodesList, i, transform); // footstepNodesList[1:]で一回でも遊脚になった以降の脚の、位置とYawをずらす
       break;
     }else if(footstepNodesList[i].isSupportPhase[LLEG] && !footstepNodesList[i].isSupportPhase[RLEG]){ // RLEGが次に最初に遊脚になる
@@ -333,7 +333,7 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
       cnoid::Position offsetedPos = mathutil::orientCoordToAxis(gaitParam.genCoords[LLEG].value() * footstepNodesList[0].dstCoords[LLEG].inverse() * footstepNodesList[i-1].dstCoords[LLEG], cnoid::Vector3::UnitZ()); // generate frame. 一つ前のLLEGはこの位置にずれている
       cnoid::Position transform = offsetedPos * origin.inverse(); // generate frame
       if(transform.translation().norm() < this->contactModificationThreshold) transform = cnoid::Position::Identity(); // ズレが大きい場合のみずらす
-      //transform.translation() -= destFootstepOffset;
+      transform.translation() -= destFootstepOffset;
       this->transformFutureSteps(footstepNodesList, i, transform); // footstepNodesList[1:]で一回でも遊脚になった以降の脚の、位置とYawをずらす
       break;
     }else if(!footstepNodesList[i].isSupportPhase[LLEG] && !footstepNodesList[i].isSupportPhase[RLEG]){ // RLEGとLLEG同時に次に最初に遊脚になる
@@ -676,8 +676,9 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   }
 
   cnoid::Vector3 displacement = cnoid::Vector3(newPos[0], newPos[1], newHeight) - footstepNodesList[0].dstCoords[swingLeg].translation();
-  destFootstepOffset = cnoid::Vector3(newPos[0], newPos[1], 0) - gaitParam.dstCoordsOrg[swingLeg].translation();
-  destFootstepOffset[2] = 0;
+  //destFootstepOffset = cnoid::Vector3(newPos[0], newPos[1], 0) - gaitParam.dstCoordsOrg[swingLeg].translation();
+  //destFootstepOffset[2] = 0;
+  destFootstepOffset = cnoid::Vector3(std::min(0.2, std::max(-0.2, newPos[0] - gaitParam.dstCoordsOrg[swingLeg].translation()[0])), std::min(0.2, std::max(-0.2, newPos[1] - gaitParam.dstCoordsOrg[swingLeg].translation()[1])), 0);
   //displacement[2] = 0.0;
   this->transformFutureSteps(footstepNodesList, 0, displacement);
   footstepNodesList[0].remainTime = newTime;
