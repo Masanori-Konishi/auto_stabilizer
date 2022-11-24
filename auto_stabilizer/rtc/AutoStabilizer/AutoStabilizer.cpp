@@ -635,26 +635,26 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
   //} else {
   //  gaitParam.genCoordsOffsetRDst = cnoid::Vector3(0, 0, 0);
   //}
-  //gaitParam.genCoordsOffsetR = 0.99 * gaitParam.genCoordsOffsetR + 0.01 * gaitParam.genCoordsOffsetRDst;
-  //gaitParam.genCoordsOffsetL = 0.99 * gaitParam.genCoordsOffsetL + 0.01 * gaitParam.genCoordsOffsetLDst;
+  //gaitParam.genCoordsOffsetR = 0.95 * gaitParam.genCoordsOffsetR + 0.05 * gaitParam.genCoordsOffsetRDst;
+  //gaitParam.genCoordsOffsetL = 0.95 * gaitParam.genCoordsOffsetL + 0.05 * gaitParam.genCoordsOffsetLDst;
 
 
-  if(gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].stopCurrentPosition[RLEG]) { //左足支持期
-    gaitParam.genCoordsOffsetR -= 0.1 * (gaitParam.actEEPose[RLEG].translation() - gaitParam.genCoords[0].value().translation());
-    gaitParam.genCoordsOffsetR[2] = 0;
-  } else {
-    gaitParam.genCoordsOffsetR = gaitParam.genCoordsOffsetR * 0.97;
-  }
-  if(gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[0].stopCurrentPosition[LLEG]) { //右足支持期
-    gaitParam.genCoordsOffsetL -= 0.1 * (gaitParam.actEEPose[LLEG].translation() - gaitParam.genCoords[1].value().translation());
-    gaitParam.genCoordsOffsetL[2] = 0;
-  } else {
-    gaitParam.genCoordsOffsetL = gaitParam.genCoordsOffsetL * 0.97;
-  }
+  //if(gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].stopCurrentPosition[RLEG]) { //左足支持期
+  //  gaitParam.genCoordsOffsetR -= 0.01 * (gaitParam.actEEPose[RLEG].translation() - gaitParam.genCoords[0].value().translation());
+  //  gaitParam.genCoordsOffsetR[2] = 0;
+  //} else {
+  //  gaitParam.genCoordsOffsetR = gaitParam.genCoordsOffsetR * 0.97;
+  //}
+  //if(gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[LLEG] && !gaitParam.footstepNodesList[0].stopCurrentPosition[LLEG]) { //右足支持期
+  //  gaitParam.genCoordsOffsetL -= 0.01 * (gaitParam.actEEPose[LLEG].translation() - gaitParam.genCoords[1].value().translation());
+  //  gaitParam.genCoordsOffsetL[2] = 0;
+  //} else {
+  //  gaitParam.genCoordsOffsetL = gaitParam.genCoordsOffsetL * 0.97;
+  //}
 
 
-  gaitParam.abcEETargetPose[0].translation() += gaitParam.genCoordsOffsetR;
-  gaitParam.abcEETargetPose[1].translation() += gaitParam.genCoordsOffsetL;
+  //gaitParam.abcEETargetPose[0].translation() += gaitParam.genCoordsOffsetR;
+  //gaitParam.abcEETargetPose[1].translation() += gaitParam.genCoordsOffsetL;
 
 
   // Stabilizer
@@ -976,11 +976,13 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
     ports.m_remainTimeOut_.write();
     ports.m_genCoords_.tm = ports.m_qRef_.tm;
     ports.m_genCoords_.data.length(12);
+    cnoid::Position tmprlegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[RLEG], cnoid::Vector3::UnitZ());
+    cnoid::Position tmpllegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[LLEG], cnoid::Vector3::UnitZ());
     for (int i=0; i<3; i++) {
       ports.m_genCoords_.data[0+i] = gaitParam.genCoords[RLEG].value().translation()[i];
       ports.m_genCoords_.data[3+i] = gaitParam.genCoords[LLEG].value().translation()[i];
       ports.m_genCoords_.data[6+i] = gaitParam.genCoords[RLEG].getGoal().translation()[i];
-      ports.m_genCoords_.data[9+i] = gaitParam.genCoords[LLEG].getGoal().translation()[i];
+      ports.m_genCoords_.data[9+i] = (tmprlegPose.inverse() * tmpllegPose).translation()[i];
     }
     ports.m_genCoordsOut_.write();
     {
