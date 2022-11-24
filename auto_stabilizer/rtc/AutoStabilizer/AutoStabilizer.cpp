@@ -677,14 +677,14 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
   gaitParam.debugData.cpViewerLog[11] = gaitParam.actEEPose[RLEG].translation()[1];
   gaitParam.debugData.cpViewerLog[12] = gaitParam.actEEPose[LLEG].translation()[0];
   gaitParam.debugData.cpViewerLog[13] = gaitParam.actEEPose[LLEG].translation()[1];
-  if (gaitParam.elapsedTime == 0) {//遊脚開始時
+  if (gaitParam.elapsedTime == 0 && gaitParam.footstepNodesList.size() >= 2 && gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && gaitParam.footstepNodesList[0].isSupportPhase[LLEG]) {//両足支持期開始時  遊脚開始時だとおかしい
     cnoid::Position rlegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[RLEG], cnoid::Vector3::UnitZ());
     cnoid::Position llegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[LLEG], cnoid::Vector3::UnitZ());
-    if(gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[0].isSupportPhase[LLEG]) {
+    if(gaitParam.legOdomSupportLeg == LLEG && gaitParam.footstepNodesList[1].isSupportPhase[RLEG] && !gaitParam.footstepNodesList[1].isSupportPhase[LLEG]) {
       gaitParam.legOdom = rlegPose.inverse() * llegPose * gaitParam.legOdom;
       gaitParam.legOdomSupportLeg = RLEG;
     }
-    if(!gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && gaitParam.footstepNodesList[0].isSupportPhase[LLEG]) {
+    if(gaitParam.legOdomSupportLeg == RLEG && !gaitParam.footstepNodesList[1].isSupportPhase[RLEG] && gaitParam.footstepNodesList[1].isSupportPhase[LLEG]) {
       gaitParam.legOdom = llegPose.inverse() * rlegPose * gaitParam.legOdom;
       gaitParam.legOdomSupportLeg = LLEG;
     }

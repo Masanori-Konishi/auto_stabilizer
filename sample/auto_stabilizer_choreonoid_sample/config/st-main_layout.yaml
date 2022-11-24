@@ -43,3 +43,9 @@ main:
     legends:
       - { key: ast_remainTimeOut, id: [0]}
     bottom_label:
+
+  LR leg distance:
+    legends:
+      - { key: ast_genCoordsOut, id: [9]}
+      - { key: ast_genCoordsOut, id: [10]}
+      - { key: ast_genCoordsOut, id: [11]}
