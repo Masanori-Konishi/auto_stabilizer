@@ -39,6 +39,25 @@ main:
       - { key: ast_genCoordsOut, id: [11]}
     bottom_label:
 
+  swing X:
+    legends:
+      - { key: ast_genCoordsOut, id: [0]}
+      - { key: ast_genCoordsOut, id: [3]}
+      - { key: genCoordsVel, id: [0]}
+      - { key: genCoordsVel, id: [3]}
+      - { key: genCoordsAcc, id: [0]}
+      - { key: genCoordsAcc, id: [3]}
+
+  swing Y:
+    legends:
+      - { key: ast_genCoordsOut, id: [1]}
+      - { key: ast_genCoordsOut, id: [4]}
+      - { key: genCoordsVel, id: [1]}
+      - { key: genCoordsVel, id: [4]}
+      - { key: genCoordsAcc, id: [1]}
+      - { key: genCoordsAcc, id: [4]}
+    bottom_label:
+
   remain time:
     legends:
       - { key: ast_remainTimeOut, id: [0]}
