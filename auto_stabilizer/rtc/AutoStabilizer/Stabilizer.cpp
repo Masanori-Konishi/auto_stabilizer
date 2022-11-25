@@ -299,10 +299,10 @@ bool Stabilizer::calcTorque(double dt, const GaitParam& gaitParam, const std::ve
   actRobotTqc->rootLink()->dw() = cnoid::Vector3::Zero();
   for(int i=0;i<actRobotTqc->numJoints();i++){
     actRobotTqc->joint(i)->q() = gaitParam.actRobot->joint(i)->q();
-    actRobotTqc->joint(i)->dq() = ((1 - alpha) * (gaitParam.actRobot->joint(i)->q() - actRobotJointPrevq[i]) / dt + alpha * actRobotJointPrevdq[i]);
-    actRobotTqc->joint(i)->ddq() = (actRobotTqc->joint(i)->dq() - actRobotJointPrevdq[i])/dt;
-    actRobotJointPrevdq[i] = actRobotTqc->joint(i)->dq();
-    actRobotJointPrevq[i] = actRobotTqc->joint(i)->q();
+    actRobotTqc->joint(i)->dq() = gaitParam.genRobot->joint(i)->dq();
+    actRobotTqc->joint(i)->ddq() = (gaitParam.genRobot->joint(i)->dq() - actRobotJointPrevdq[i])/dt;
+    actRobotJointPrevdq[i] = gaitParam.genRobot->joint(i)->dq();
+    //actRobotJointPrevq[i] = actRobotTqc->joint(i)->q();
   }
   actRobotTqc->calcForwardKinematics(true, true);
   cnoid::calcInverseDynamics(actRobotTqc->rootLink()); // actRobotTqc->joint()->u()に書き込まれる
