@@ -44,6 +44,7 @@ public:
 protected:
   mutable std::vector<cpp_filters::FirstOrderLowPassFilter<cnoid::Vector6> > actLegWrenchFilter = std::vector<cpp_filters::FirstOrderLowPassFilter<cnoid::Vector6> >(2, cpp_filters::FirstOrderLowPassFilter<cnoid::Vector6>(50.0, cnoid::Vector6::Zero()));  // 要素数2. rleg: 0. lleg: 1. generate frame. endeffector origin. cutoff 50hz. contactDecisionThresholdを用いた接触判定に用いる
   mutable cnoid::Vector3 destFootstepOffset = cnoid::Vector3::Zero();
+  mutable double stairTime = 0;
 public:
   // startAutoBalancer時に呼ばれる
   void reset(){
