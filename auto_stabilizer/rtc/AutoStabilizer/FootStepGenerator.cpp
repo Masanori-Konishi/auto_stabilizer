@@ -578,7 +578,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   debugData.cpViewerLog[8] = destPos[0];
   debugData.cpViewerLog[9] = destPos[1];
 
-  debugData.cpViewerLog[14] = gaitParam.wheelVel;
+  //debugData.cpViewerLog[14] = gaitParam.wheelVel;
 
   cnoid::Vector3 newPos = cnoid::Vector3(1e+10, 1e+10, 0);
   cnoid::Vector3 newShort = cnoid::Vector3(1e+10, 1e+10, 0);
@@ -1020,11 +1020,11 @@ bool FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
     if (zmpMax[1]  < this->safeLegHull[supportLeg][i][1]) zmpMax[1] = this->safeLegHull[supportLeg][i][1];
   }
 
-  debugData.cpViewerLog[15] = omega;
-  debugData.cpViewerLog[16] = cp[0];
-  debugData.cpViewerLog[17] = cp[1];
-  debugData.cpViewerLog[18] = swingPose.translation()[0];
-  debugData.cpViewerLog[19] = swingPose.translation()[1];
+  //debugData.cpViewerLog[15] = omega;
+  //debugData.cpViewerLog[16] = cp[0];
+  //debugData.cpViewerLog[17] = cp[1];
+  //debugData.cpViewerLog[18] = swingPose.translation()[0];
+  //debugData.cpViewerLog[19] = swingPose.translation()[1];
 
   //CRが存在するMinMaxTimeを計算し、CR凸包のためのサンプリングタイムを決定
   std::vector<std::vector<double> > samplingTime = std::vector<std::vector<double> >{std::vector<double>(), std::vector<double>(), std::vector<double>()};//0...x, 1...y, 2...merge

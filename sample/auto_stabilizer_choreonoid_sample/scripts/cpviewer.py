@@ -128,9 +128,11 @@ while True:
     cv2.circle(img, reshape_pos(landingdata[i][4:6]), 10, (1, 0, 0), -1)
     cv2.circle(img, reshape_pos(gencoordsdata[i][1:3]), 10, (1, 1, 0), -1)
     cv2.circle(img, reshape_pos(gencoordsdata[i][4:6]), 10, (1, 1, 0), -1)
-    cv2.circle(img, reshape_pos(cpviewerdata[i][11:13]), 5, (0.5, 0.5, 0), -1)
-    cv2.circle(img, reshape_pos(cpviewerdata[i][13:15]), 5, (0.5, 0.5, 0), -1)
-    cv2.circle(img, reshape_pos(cpviewerdata[i][9:11]), 5, (1, 0, 0.5), -1)
+    cv2.circle(img, reshape_pos(cpviewerdata[i][11:13]), 5, (0.5, 0.5, 0), -1) #RLEG actEEPose
+    cv2.circle(img, reshape_pos(cpviewerdata[i][13:15]), 5, (0.5, 0.5, 0), -1) #LLEG actEEPose
+    cv2.circle(img, reshape_pos(cpviewerdata[i][9:11]), 5, (1, 0, 0.5), -1) #destPos
+    cv2.circle(img, reshape_pos(cpviewerdata[i][15:17]), 10, (1, 1, 0), -1) #root genRobot
+    cv2.circle(img, reshape_pos(cpviewerdata[i][17:19]), 5, (0.5, 0.5, 0), -1) #root actRobot
     #cv2.circle(img, reshape_pos(tmpdata[i][17:19]), 5, (255, 0, 255), -1)
     #cv2.line(img, reshape_pos(tmpdata[i][19:21]), reshape_pos(tmpdata[i][21:23]), (255, 100, 100), 3)
     #for j in range(zmplimit.shape[0]):
@@ -175,7 +177,7 @@ while True:
     elif key == 32:
         mode = "play"
     elif key == 13:
-        print(cpviewerdata[i][0], gencoordsdata[i][1:3], cpviewerdata[i][11:13], cpviewerdata[i][15:]) #その他cpviewerdataのデバッグ情報表示
+        print(cpviewerdata[i][0], int(1000* (gencoordsdata[i][1] - cpviewerdata[i][11])), int(1000*(cpviewerdata[i][15] - cpviewerdata[i][17])), int(1000*(gencoordsdata[i][4] - cpviewerdata[i][13])), " : ", int(1000*((cpviewerdata[i][15] - gencoordsdata[i][1]) - (cpviewerdata[i][17] - cpviewerdata[i][11]))), int(1000*((cpviewerdata[i][15] - gencoordsdata[i][4]) - (cpviewerdata[i][17] - cpviewerdata[i][13])))) #その他cpviewerdataのデバッグ情報表示
     elif key == 27:
         break
     #if key != -1:

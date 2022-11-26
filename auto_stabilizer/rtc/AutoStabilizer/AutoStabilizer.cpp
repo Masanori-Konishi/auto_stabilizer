@@ -677,6 +677,10 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
   gaitParam.debugData.cpViewerLog[11] = gaitParam.actEEPose[RLEG].translation()[1];
   gaitParam.debugData.cpViewerLog[12] = gaitParam.actEEPose[LLEG].translation()[0];
   gaitParam.debugData.cpViewerLog[13] = gaitParam.actEEPose[LLEG].translation()[1];
+  gaitParam.debugData.cpViewerLog[14] = gaitParam.genRobot->rootLink()->T().translation()[0];
+  gaitParam.debugData.cpViewerLog[15] = gaitParam.genRobot->rootLink()->T().translation()[1];
+  gaitParam.debugData.cpViewerLog[16] = gaitParam.actRobot->rootLink()->T().translation()[0];
+  gaitParam.debugData.cpViewerLog[17] = gaitParam.actRobot->rootLink()->T().translation()[1];
   if (gaitParam.elapsedTime == 0 && gaitParam.footstepNodesList.size() >= 2 && gaitParam.footstepNodesList[0].isSupportPhase[RLEG] && gaitParam.footstepNodesList[0].isSupportPhase[LLEG]) {//両足支持期開始時  遊脚開始時だとおかしい
     cnoid::Position rlegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[RLEG], cnoid::Vector3::UnitZ());
     cnoid::Position llegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[LLEG], cnoid::Vector3::UnitZ());
