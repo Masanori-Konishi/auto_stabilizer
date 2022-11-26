@@ -9,6 +9,10 @@ main:
       - { key: ast_actDcmOut, id: [0]}
       - { key: ast_dstLandingPosOut, id: [0]}
       - { key: ast_dstLandingPosOut, id: [3]}
+      - { key: ast_genCoordsOut, id: [0]}
+      - { key: ast_genCoordsOut, id: [3]}
+      - { key: ast_genCoordsOut, id: [6]}
+      - { key: ast_genCoordsOut, id: [9]}
     bottom_label:
 
   cog zmp Y:
