@@ -353,6 +353,7 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
       break;
     }
   }
+  destFootstepOffset=cnoid::Vector3::Zero();
   for(int i=0;i<NUM_LEGS;i++){
     if(footstepNodesList[1].isSupportPhase[i]){
       cnoid::Position transform = gaitParam.genCoords[i].value() * footstepNodesList[0].dstCoords[i].inverse(); // generate frame
@@ -685,7 +686,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   cnoid::Vector3 displacement = cnoid::Vector3(newPos[0], newPos[1], newHeight) - footstepNodesList[0].dstCoords[swingLeg].translation();
   //destFootstepOffset = cnoid::Vector3(newPos[0], newPos[1], 0) - gaitParam.dstCoordsOrg[swingLeg].translation();
   //destFootstepOffset[2] = 0;
-  destFootstepOffset = cnoid::Vector3(std::min(0.2, std::max(-0.2, 0.5 * (newPos[0] - gaitParam.dstCoordsOrg[swingLeg].translation()[0]))), std::min(0.2, std::max(-0.2, 0.5 * (newPos[1] - gaitParam.dstCoordsOrg[swingLeg].translation()[1]))), 0);
+  destFootstepOffset = cnoid::Vector3(std::min(0.2, std::max(-0.2, 1.0 * (newPos[0] - gaitParam.dstCoordsOrg[swingLeg].translation()[0]))), std::min(0.2, std::max(-0.2, 1.0 * (newPos[1] - gaitParam.dstCoordsOrg[swingLeg].translation()[1]))), 0);
   //displacement[2] = 0.0;
   this->transformFutureSteps(footstepNodesList, 0, displacement);
   footstepNodesList[0].remainTime = newTime;
@@ -1065,6 +1066,16 @@ bool FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
     return false;
   }
 
+  //min max time との比較
+  for (int i = 0; i < 2; i++) {
+    if (samplingTime[i].back() < minTime || maxTime < samplingTime[i][0]) { //もともとのminmaxTimeの範囲にない
+      return false;
+    }
+    if (samplingTime[i][0] < minTime) samplingTime[i].push_back(minTime);
+    if (maxTime < samplingTime[i].back()) samplingTime[i].push_back(maxTime);
+    std::sort(samplingTime[i].begin(), samplingTime[i].end());
+  }
+
   if(samplingTime[0].size() < 2 || samplingTime[1].size() < 2) {
     std::cout << "ssssssssssssssssssaaaaaaaaaaaaaaaaaaaaaaammmmmmmmmmmmmmmmmmmmmppppppppppppppppppppplllllllllllllllllllllllliiiiiiiiiiiiiiiiiiiiinnnnnnnnnnnnnnnnnnnnnggggggggggggggggeeeeeeeeeeeeeeerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrroooooooooooooooooooooooooorrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr" << std::endl;
     samplingTime[0].push_back(tmin);
@@ -1074,8 +1085,8 @@ bool FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
     std::cout << samplingTime[0].size() << " " << samplingTime[1].size() << std::endl;
   }
 
-  double tmpMin = std::max(samplingTime[0][0], samplingTime[1][0]);
-  double tmpMax = std::min(samplingTime[0].back(), samplingTime[1].back());
+  double tmpMin = std::max(std::max(samplingTime[0][0], samplingTime[1][0]), minTime);
+  double tmpMax = std::min(std::min(samplingTime[0].back(), samplingTime[1].back()), maxTime);
   for (int i = 0; i < 2; i++) {
     for (int j = 0; j < samplingTime[i].size(); j++) {
       if (tmpMin <= samplingTime[i][j] && samplingTime[i][j] <= tmpMax) samplingTime[2].push_back(samplingTime[i][j]);
