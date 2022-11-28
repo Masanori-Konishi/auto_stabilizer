@@ -677,7 +677,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
 
   //次の周回からstairTimeを有効化
   if (std::abs(newHeight - gaitParam.srcCoords[swingLeg].translation()[2]) > 0.05) {
-    stairTime = 0.5;
+    stairTime = 0.3;
   } else {
     stairTime = 0.0;
   }
@@ -685,7 +685,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   cnoid::Vector3 displacement = cnoid::Vector3(newPos[0], newPos[1], newHeight) - footstepNodesList[0].dstCoords[swingLeg].translation();
   //destFootstepOffset = cnoid::Vector3(newPos[0], newPos[1], 0) - gaitParam.dstCoordsOrg[swingLeg].translation();
   //destFootstepOffset[2] = 0;
-  destFootstepOffset = cnoid::Vector3(std::min(0.2, std::max(-0.2, newPos[0] - gaitParam.dstCoordsOrg[swingLeg].translation()[0])), std::min(0.2, std::max(-0.2, newPos[1] - gaitParam.dstCoordsOrg[swingLeg].translation()[1])), 0);
+  destFootstepOffset = cnoid::Vector3(std::min(0.2, std::max(-0.2, 0.5 * (newPos[0] - gaitParam.dstCoordsOrg[swingLeg].translation()[0]))), std::min(0.2, std::max(-0.2, 0.5 * (newPos[1] - gaitParam.dstCoordsOrg[swingLeg].translation()[1]))), 0);
   //displacement[2] = 0.0;
   this->transformFutureSteps(footstepNodesList, 0, displacement);
   footstepNodesList[0].remainTime = newTime;
@@ -1008,7 +1008,7 @@ bool FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& 
 
   double tmin = 0.1;
   cnoid::Vector3 zmpv = cnoid::Vector3(wheelVel, 0.0, 0.0);
-  cnoid::Vector3 vmax = cnoid::Vector3(1.0, 1.0, 0.0);;
+  cnoid::Vector3 vmax = cnoid::Vector3(1.5, 1.5, 0.0);;
 
   //safeLegHullが長方形であることを仮定(xy分離のため)
   cnoid::Vector3 zmpMin = cnoid::Vector3::Zero();
