@@ -1230,11 +1230,13 @@ void FootStepGenerator::checkEarlyTouchDown(std::vector<GaitParam::FootStepNodes
       cnoid::Vector3 actDCM = gaitParam.actCog + gaitParam.actCogVel.value() / gaitParam.omega; // generate frame
 
       if(footstepNodesList[1].isSupportPhase[RLEG] && !footstepNodesList[1].isSupportPhase[LLEG] && //次が右足支持期
+               gaitParam.elapsedTime <= 0.4 && //最長時間
                mathutil::isInsideHull(actDCM, safeDoubleLegHull) && // actDCMが両足支持凸包内
                !mathutil::isInsideHull(actDCM, safeSingleLegHull[RLEG])){ // actDCMが右足支持凸包外
         footstepNodesList[0].remainTime += dt;
       }
       if(!footstepNodesList[1].isSupportPhase[RLEG] && footstepNodesList[1].isSupportPhase[LLEG] && //次が左足支持期
+               gaitParam.elapsedTime <= 0.4 && //最長時間
                mathutil::isInsideHull(actDCM, safeDoubleLegHull) && // actDCMが両足支持凸包内
                !mathutil::isInsideHull(actDCM, safeSingleLegHull[LLEG])){ // actDCMが右足支持凸包外
         footstepNodesList[0].remainTime += dt;
