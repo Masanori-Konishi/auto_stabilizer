@@ -142,7 +142,7 @@ while True:
         cv2.circle(img, (10, 10), 5, (0, 1, 0), -1)
     elif mode == "stop":
         cv2.circle(img, (10, 10), 5, (0, 0, 1), -1)
-    cv2.flip(img, 0)
+    img = cv2.flip(img, 0)
     cv2.imshow('img', img)
     cv2.setMouseCallback("img", mousePoints)
     key = cv2.waitKey(1)
