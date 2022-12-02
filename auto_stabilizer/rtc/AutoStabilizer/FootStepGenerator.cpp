@@ -225,7 +225,7 @@ bool FootStepGenerator::goStop(const GaitParam& gaitParam,
 
 // FootStepNodesListをdtすすめる
 bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const double& dt, bool useActState,
-                                              std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase, double& relLandingHeight, double& wheelVel) const{
+                                              std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase, double& relLandingHeight, double& wheelVel, cnoid::Vector3& doubleSupportZmpOffset) const{
   std::vector<GaitParam::FootStepNodes> footstepNodesList = gaitParam.footstepNodesList;
   std::vector<bool> prevSupportPhase = gaitParam.prevSupportPhase;
   double elapsedTime = gaitParam.elapsedTime;
@@ -236,7 +236,7 @@ bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const 
 
   if(useActState){
     // 早づきしたらremainTimeにかかわらずすぐに次のnodeへ移る(remainTimeをdtにする). この機能が無いと少しでもロボットが傾いて早づきするとジャンプするような挙動になる.
-    this->checkEarlyTouchDown(footstepNodesList, gaitParam, dt);
+    this->checkEarlyTouchDown(footstepNodesList, doubleSupportZmpOffset, gaitParam, dt);
   }
 
   // footstepNodesListを進める
@@ -575,7 +575,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     debugData.cpViewerLog[i*2+1] = genSafeSupportLegHull[i][1];
   }
 
-  cnoid::Vector3 destPos = 0.98 * footstepNodesList[0].dstCoords[swingLeg].translation() + 0.02 * gaitParam.dstCoordsOrg[swingLeg].translation();
+  cnoid::Vector3 destPos = 0.99 * footstepNodesList[0].dstCoords[swingLeg].translation() + 0.01 * gaitParam.dstCoordsOrg[swingLeg].translation();
   debugData.cpViewerLog[8] = destPos[0];
   debugData.cpViewerLog[9] = destPos[1];
 
@@ -615,7 +615,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     }
 
     //modify landing time
-    double tmpTime = 0.98 * footstepNodesList[0].remainTime + 0.02 * std::max(0.0, (gaitParam.remainTimeOrg + stairTime) - gaitParam.elapsedTime);
+    double tmpTime = 0.99 * footstepNodesList[0].remainTime + 0.01 * std::max(0.0, (gaitParam.remainTimeOrg + stairTime) - gaitParam.elapsedTime);
     cnoid::Vector3 a = tmpPos+tmpShort - actDCM;
     a[2] = 0;
     a = a / a.norm();
@@ -1191,7 +1191,7 @@ double FootStepGenerator::calcCRMinMaxTime(double& minTime, double& maxTime, dou
 // remainTimeが0になっても地面についていなかったら、remainTimeを少しずつ延長し着地位置を下方に少しずつオフセットさせる
 //   - remainTimeが0のときには本来の着地位置に行くようにしないと、着地タイミングがrefZmpよりも常に早すぎ・遅すぎになるので良くない
 //   - ただし、この方法だと、遅づきしたときに着地時刻が遅くなるのでDCMが移動しずぎてしまっているので、転びやすい.
-void FootStepGenerator::checkEarlyTouchDown(std::vector<GaitParam::FootStepNodes>& footstepNodesList, const GaitParam& gaitParam, double dt) const{
+void FootStepGenerator::checkEarlyTouchDown(std::vector<GaitParam::FootStepNodes>& footstepNodesList, cnoid::Vector3& doubleSupportZmpOffset, const GaitParam& gaitParam, double dt) const{
   for(int i=0;i<NUM_LEGS;i++){
     actLegWrenchFilter[i].passFilter(gaitParam.actEEWrench[i], dt);
   }
@@ -1228,19 +1228,27 @@ void FootStepGenerator::checkEarlyTouchDown(std::vector<GaitParam::FootStepNodes
       }
       safeDoubleLegHull = mathutil::calcConvexHull(safeDoubleLegVertices); // generate frame. Z成分はてきとう
       cnoid::Vector3 actDCM = gaitParam.actCog + gaitParam.actCogVel.value() / gaitParam.omega; // generate frame
+      cnoid::Vector3 genDCM = gaitParam.genCog + gaitParam.genCogVel / gaitParam.omega;
 
       if(footstepNodesList[1].isSupportPhase[RLEG] && !footstepNodesList[1].isSupportPhase[LLEG] && //次が右足支持期
-               gaitParam.elapsedTime <= 0.4 && //最長時間
+               gaitParam.elapsedTime <= 10.0 && //最長時間
                mathutil::isInsideHull(actDCM, safeDoubleLegHull) && // actDCMが両足支持凸包内
                !mathutil::isInsideHull(actDCM, safeSingleLegHull[RLEG])){ // actDCMが右足支持凸包外
         footstepNodesList[0].remainTime += dt;
-      }
-      if(!footstepNodesList[1].isSupportPhase[RLEG] && footstepNodesList[1].isSupportPhase[LLEG] && //次が左足支持期
-               gaitParam.elapsedTime <= 0.4 && //最長時間
+        doubleSupportZmpOffset += 0.01 * (genDCM - actDCM);
+        doubleSupportZmpOffset[2] = 0;
+      } else if(!footstepNodesList[1].isSupportPhase[RLEG] && footstepNodesList[1].isSupportPhase[LLEG] && //次が左足支持期
+               gaitParam.elapsedTime <= 10.0 && //最長時間
                mathutil::isInsideHull(actDCM, safeDoubleLegHull) && // actDCMが両足支持凸包内
                !mathutil::isInsideHull(actDCM, safeSingleLegHull[LLEG])){ // actDCMが右足支持凸包外
         footstepNodesList[0].remainTime += dt;
+        doubleSupportZmpOffset += 0.01 * (genDCM - actDCM);
+        doubleSupportZmpOffset[2] = 0;
+      } else {
+        doubleSupportZmpOffset = cnoid::Vector3::Zero();
       }
+    } else {
+      doubleSupportZmpOffset = cnoid::Vector3::Zero();
     }
   }
 }

@@ -82,6 +82,7 @@ public:
   cnoid::Vector3 l = cnoid::Vector3(0, 0, refdz); // generate frame. FootGuidedControlで外力を計算するときの、ZMP-重心の相対位置に対するオフセット. また、CMPの計算時にDCMに対するオフセット(CMP + l = DCM). 連続的に変化する.
   cnoid::Vector3 sbpOffset = cnoid::Vector3::Zero(); // generate frame. 外力考慮重心と重心のオフセット. genCog = genRobot->centerOfMass() - sbpOffset. actCog = actRobot->centerOfMass() - sbpOffset.
   cnoid::Vector3 actCog; // generate frame. 現在のCOMにsbpOffsetを施したもの actCog = actRobot->centerOfMass() - sbpOffset
+  cnoid::Vector3 doubleSupportZmpOffset = cnoid::Vector3::Zero();
 
   // ImpedanceController
   std::vector<cpp_filters::TwoPointInterpolator<cnoid::Vector6> > icEEOffset; // 要素数と順序はeeNameと同じ.generate frame. endEffector origin. icで計算されるオフセット

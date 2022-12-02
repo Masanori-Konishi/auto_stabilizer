@@ -8,7 +8,7 @@ class FootStepGenerator{
 public:
   // FootStepGeneratorでしか使わないパラメータ
   double legCollisionMargin = 0.02; // [m]. 左右の足のlegHullがこの距離以上離れるようにする. 0以上.
-  double defaultStepTime = 0.8; // [s]. goPosやgoVelocityのときに自動生成されるfootstepの一歩の時間. 0より大きい
+  double defaultStepTime = 1.0; // [s]. goPosやgoVelocityのときに自動生成されるfootstepの一歩の時間. 0より大きい
   std::vector<double> defaultStrideLimitationMaxTheta = std::vector<double>{0.261799,0.785398}; // 要素数2. rleg: 0. lleg: 1. leg frame. [rad]. goPosやgoVelocityのときに自動生成されるfootstepの上限. 支持脚相対. default 15,45[deg]. 0以上. 足裏同士の干渉は自動で回避できるが、膝同士の干渉はIK以外では回避できないので、内股方向には小さくすること.
   std::vector<double> defaultStrideLimitationMinTheta = std::vector<double>{-0.785398,-0.261799}; // 要素数2. rleg: 0. lleg: 1. leg frame. [rad]. goPosやgoVelocityのときに自動生成されるfootstepの下限. 支持脚相対. default 15,45[deg]. 0以下. 足裏同士の干渉は自動で回避できるが、膝同士の干渉はIK以外では回避できないので、内股方向には小さくすること.
   std::vector<std::vector<cnoid::Vector3> > defaultStrideLimitationHull = std::vector<std::vector<cnoid::Vector3> >{std::vector<cnoid::Vector3>{cnoid::Vector3(0.25,-0.18,0),cnoid::Vector3(-0.25,-0.18,0),cnoid::Vector3(-0.25,-0.45,0),cnoid::Vector3(0.25,-0.45,0)},std::vector<cnoid::Vector3>{cnoid::Vector3(0.25,0.35,0),cnoid::Vector3(-0.25,0.35,0),cnoid::Vector3(-0.25,0.18,0),cnoid::Vector3(0.25,0.18,0)}}; // 要素数2. 0: rleg用, 1: lleg用. 単位[m]. goPosやgoVelocityのときに自動生成されるfootstepの、遊脚のエンドエフェクタの着地位置の範囲の凸包. 反対の脚のEndEffector frame(Z軸は鉛直)で表現した着地可能領域(自己干渉やIKの考慮が含まれる). あったほうが扱いやすいのでZ成分があるが、Z成分は0でないといけない. 凸形状で,上から見て半時計回り. thetaの影響はlegHullとlegCollisionMarginを用いて別で評価されるので、defaultStrideLimitationHullでは考慮しなくて良い. 左右方向にsteppable regionをまたぐ場合は、これのY成分が大きくないと後ろ足がまたげない
@@ -16,8 +16,8 @@ public:
   double defaultStepHeight = 0.05; // goPosやgoVelocityのときに自動生成されるfootstepの足上げ高さ[m]. 0以上
   unsigned int goVelocityStepNum = 6; // goVelocity中にfootStepNodesListの将来の何ステップぶんを常に生成するか. 1以上
   bool isModifyFootSteps = true; // 着地位置時間修正を行うかどうか
-  double overwritableRemainTime = 0.25; // 0以上. 単位[s]. 次indexまでの残り時間がこの値を下回っている場合、着地位置時間修正を行わない. DOWN_PHASEのときにfootstepNodesList[0]のdstCoordsはgenCoordsよりも高い位置に変更されることがないようにするために、LegCoordsGeneratorのdelayTimeOffset以上の値にせよ.
-  double overwritableMinTime = 0.3; // 0より大きい. 単位[s]. 次indexまでの残り時間がこの値を下回るようには着地時間修正を行わない. もともと下回っている場合には、その値を下回るようには着地時間修正を行わない. これが無いと脚を空中から下ろす時間が足りなくて急激に動く
+  double overwritableRemainTime = 0.20; // 0以上. 単位[s]. 次indexまでの残り時間がこの値を下回っている場合、着地位置時間修正を行わない. DOWN_PHASEのときにfootstepNodesList[0]のdstCoordsはgenCoordsよりも高い位置に変更されることがないようにするために、LegCoordsGeneratorのdelayTimeOffset以上の値にせよ.
+  double overwritableMinTime = 0.25; // 0より大きい. 単位[s]. 次indexまでの残り時間がこの値を下回るようには着地時間修正を行わない. もともと下回っている場合には、その値を下回るようには着地時間修正を行わない. これが無いと脚を空中から下ろす時間が足りなくて急激に動く
   double overwritableMinStepTime = 0.6; // 0より大きい. 単位[s]. 現index開始時からの経過時間がこの値を下回るようには着地時間修正を行わない. もともと下回っている場合には、その値を下回るようには着地時間修正を行わない. これが無いと脚を地面から上げて下ろす時間が足りなくて急激に動く
   double overwritableMaxStepTime = 2.0; // overwritableMinStepTimeより大きい. 単位[s]. 現index開始時からの経過時間がこの値を上回るようには着地時間修正を行わない. もともと上回っている場合には、その値を上回るようには着地時間修正を行わない. これが無いと、DCMが片足のcopとほぼ一致しているときに、ずっと脚を浮かせたまま止まってしまう.
   double overwritableMaxSwingVelocity = 1.0; // 0より大きい. 単位[m/s]. 今の遊脚の位置のXYから着地位置のXYまで移動するための速度がこの値を上回るようには着地位置時間修正を行わない
@@ -110,7 +110,7 @@ public:
 
   // FootStepNodesListをdtすすめる
   bool procFootStepNodesList(const GaitParam& gaitParam, const double& dt, bool useActState,
-                             std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase, double& relLandingHeight, double& wheelVel) const;
+                             std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase, double& relLandingHeight, double& wheelVel, cnoid::Vector3& doubleSupportZmpOffset) const;
 
   /*
     footstepNodesList[1]開始時のsupport/swingの状態を上書きによって変更する場合は、footstepNodesList[0]の終了時の状態が両脚支持でかつその期間の時間がdefaultDoubleSupportTimeよりも短いなら延長する
@@ -128,7 +128,7 @@ public:
 
 protected:
   // 早づきしたらremainTimeをdtに減らしてすぐに次のnodeへ移る. この機能が無いと少しでもロボットが傾いて早づきするとジャンプするような挙動になる.
-  void checkEarlyTouchDown(std::vector<GaitParam::FootStepNodes>& footstepNodesList, const GaitParam& gaitParam, double dt) const;
+  void checkEarlyTouchDown(std::vector<GaitParam::FootStepNodes>& footstepNodesList, cnoid::Vector3& doubleSupportZmpOffset, const GaitParam& gaitParam, double dt) const;
   // stableGoStop.
   void checkStableGoStop(std::vector<GaitParam::FootStepNodes>& footstepNodesList, const GaitParam& gaitParam) const;
   // footstepNodesListをdtだけ進める
