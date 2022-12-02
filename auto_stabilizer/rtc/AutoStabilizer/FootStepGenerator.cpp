@@ -575,7 +575,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     debugData.cpViewerLog[i*2+1] = genSafeSupportLegHull[i][1];
   }
 
-  cnoid::Vector3 destPos = 0.99 * footstepNodesList[0].dstCoords[swingLeg].translation() + 0.01 * gaitParam.dstCoordsOrg[swingLeg].translation();
+  cnoid::Vector3 destPos = 0.995 * footstepNodesList[0].dstCoords[swingLeg].translation() + 0.005 * gaitParam.dstCoordsOrg[swingLeg].translation();
   debugData.cpViewerLog[8] = destPos[0];
   debugData.cpViewerLog[9] = destPos[1];
 
@@ -615,7 +615,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
     }
 
     //modify landing time
-    double tmpTime = 0.99 * footstepNodesList[0].remainTime + 0.01 * std::max(0.0, (gaitParam.remainTimeOrg + stairTime) - gaitParam.elapsedTime);
+    double tmpTime = 0.995 * footstepNodesList[0].remainTime + 0.005 * std::max(0.0, (gaitParam.remainTimeOrg + stairTime) - gaitParam.elapsedTime);
     cnoid::Vector3 a = tmpPos+tmpShort - actDCM;
     a[2] = 0;
     a = a / a.norm();
