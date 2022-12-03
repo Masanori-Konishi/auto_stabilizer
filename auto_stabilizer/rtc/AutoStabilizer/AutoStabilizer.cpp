@@ -578,7 +578,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
     impedanceController.initImpedanceOutput(gaitParam,
                                             gaitParam.icEEOffset);
     footStepGenerator.initFootStepNodesList(gaitParam,
-                                            gaitParam.footstepNodesList, gaitParam.srcCoords, gaitParam.dstCoordsOrg, gaitParam.remainTimeOrg, gaitParam.swingState, gaitParam.elapsedTime, gaitParam.prevSupportPhase);
+                                            gaitParam.footstepNodesList, gaitParam.srcCoords, gaitParam.dstCoordsOrg, gaitParam.remainTimeOrg, gaitParam.swingState, gaitParam.isLandingGainPhase, gaitParam.elapsedTime, gaitParam.prevSupportPhase);
     legCoordsGenerator.initLegCoords(gaitParam,
                                      gaitParam.refZmpTraj, gaitParam.genCoords);
     stabilizer.initStabilizerOutput(gaitParam,
@@ -611,12 +611,12 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
 
   // AutoBalancer
   footStepGenerator.procFootStepNodesList(gaitParam, dt, mode.isSTRunning(),
-                                          gaitParam.footstepNodesList, gaitParam.srcCoords, gaitParam.dstCoordsOrg, gaitParam.remainTimeOrg, gaitParam.swingState, gaitParam.elapsedTime, gaitParam.prevSupportPhase, gaitParam.relLandingHeight, gaitParam.wheelVel, gaitParam.doubleSupportZmpOffset);
+                                          gaitParam.footstepNodesList, gaitParam.srcCoords, gaitParam.dstCoordsOrg, gaitParam.remainTimeOrg, gaitParam.swingState, gaitParam.isLandingGainPhase, gaitParam.elapsedTime, gaitParam.prevSupportPhase, gaitParam.relLandingHeight, gaitParam.wheelVel, gaitParam.doubleSupportZmpOffset);
   footStepGenerator.calcFootSteps(gaitParam, dt, mode.isSTRunning(),
                                   gaitParam.debugData, //for log
                                   gaitParam.footstepNodesList);
   legCoordsGenerator.calcLegCoords(gaitParam, dt, mode.isSTRunning(),
-                                   gaitParam.refZmpTraj, gaitParam.genCoords, gaitParam.swingState);
+                                   gaitParam.refZmpTraj, gaitParam.genCoords, gaitParam.swingState, gaitParam.isLandingGainPhase);
   legCoordsGenerator.calcCOMCoords(gaitParam, dt,
                                    gaitParam.genCog, gaitParam.genCogVel, gaitParam.genCogAcc);
   for(int i=0;i<gaitParam.eeName.size();i++){

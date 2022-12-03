@@ -4,7 +4,7 @@
 #include <opencv2/imgproc.hpp>
 
 bool FootStepGenerator::initFootStepNodesList(const GaitParam& gaitParam,
-                                              std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase) const{
+                                              std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, std::vector<bool>& o_isLandingGainPhase, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase) const{
   // footStepNodesListを初期化する
   std::vector<GaitParam::FootStepNodes> footstepNodesList(1);
   cnoid::Position rlegCoords = gaitParam.genRobot->link(gaitParam.eeParentLink[RLEG])->T()*gaitParam.eeLocalT[RLEG];
@@ -20,6 +20,8 @@ bool FootStepGenerator::initFootStepNodesList(const GaitParam& gaitParam,
   double remainTimeOrg = footstepNodesList[0].remainTime;
   std::vector<GaitParam::SwingState_enum> swingState(NUM_LEGS);
   for(int i=0;i<NUM_LEGS;i++) swingState[i] = GaitParam::LIFT_PHASE;
+  std::vector<bool> isLandingGainPhase(NUM_LEGS);
+  for(int i=0;i<NUM_LEGS;i++) isLandingGainPhase[i] = false;
   std::vector<bool> prevSupportPhase(NUM_LEGS);
   for(int i=0;i<NUM_LEGS;i++) prevSupportPhase[i] = footstepNodesList[0].isSupportPhase[i];
   double elapsedTime = 0.0;
@@ -30,6 +32,7 @@ bool FootStepGenerator::initFootStepNodesList(const GaitParam& gaitParam,
   o_dstCoordsOrg = dstCoordsOrg;
   o_remainTimeOrg = remainTimeOrg;
   o_swingState = swingState;
+  o_isLandingGainPhase = isLandingGainPhase;
   o_elapsedTime = elapsedTime;
 
   return true;
@@ -225,7 +228,7 @@ bool FootStepGenerator::goStop(const GaitParam& gaitParam,
 
 // FootStepNodesListをdtすすめる
 bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const double& dt, bool useActState,
-                                              std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase, double& relLandingHeight, double& wheelVel, cnoid::Vector3& doubleSupportZmpOffset) const{
+                                              std::vector<GaitParam::FootStepNodes>& o_footstepNodesList, std::vector<cnoid::Position>& o_srcCoords, std::vector<cnoid::Position>& o_dstCoordsOrg, double& o_remainTimeOrg, std::vector<GaitParam::SwingState_enum>& o_swingState, std::vector<bool>& o_isLandingGainPhase, double& o_elapsedTime, std::vector<bool>& o_prevSupportPhase, double& relLandingHeight, double& wheelVel, cnoid::Vector3& doubleSupportZmpOffset) const{
   std::vector<GaitParam::FootStepNodes> footstepNodesList = gaitParam.footstepNodesList;
   std::vector<bool> prevSupportPhase = gaitParam.prevSupportPhase;
   double elapsedTime = gaitParam.elapsedTime;
@@ -233,6 +236,7 @@ bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const 
   std::vector<cnoid::Position> dstCoordsOrg = gaitParam.dstCoordsOrg;
   double remainTimeOrg = gaitParam.remainTimeOrg;
   std::vector<GaitParam::SwingState_enum> swingState = gaitParam.swingState;
+  std::vector<bool> isLandingGainPhase = gaitParam.isLandingGainPhase;
 
   if(useActState){
     // 早づきしたらremainTimeにかかわらずすぐに次のnodeへ移る(remainTimeをdtにする). この機能が無いと少しでもロボットが傾いて早づきするとジャンプするような挙動になる.
@@ -252,7 +256,7 @@ bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const 
 
     // footstepNodesList[1]へ進む
     this->goNextFootStepNodesList(gaitParam, dt,
-                                  footstepNodesList, srcCoords, dstCoordsOrg, remainTimeOrg, swingState, elapsedTime, relLandingHeight, wheelVel);
+                                  footstepNodesList, srcCoords, dstCoordsOrg, remainTimeOrg, swingState, isLandingGainPhase, elapsedTime, relLandingHeight, wheelVel);
   }
 
   o_footstepNodesList = footstepNodesList;
@@ -262,6 +266,7 @@ bool FootStepGenerator::procFootStepNodesList(const GaitParam& gaitParam, const 
   o_dstCoordsOrg = dstCoordsOrg;
   o_remainTimeOrg = remainTimeOrg;
   o_swingState = swingState;
+  o_isLandingGainPhase = isLandingGainPhase;
 
   return true;
 }
@@ -301,7 +306,7 @@ bool FootStepGenerator::calcFootSteps(const GaitParam& gaitParam, const double& 
 }
 
 bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, double dt,
-                                                std::vector<GaitParam::FootStepNodes>& footstepNodesList, std::vector<cnoid::Position>& srcCoords, std::vector<cnoid::Position>& dstCoordsOrg, double& remainTimeOrg, std::vector<GaitParam::SwingState_enum>& swingState, double& elapsedTime, double& relLandingHeight, double& wheelVel) const{
+                                                std::vector<GaitParam::FootStepNodes>& footstepNodesList, std::vector<cnoid::Position>& srcCoords, std::vector<cnoid::Position>& dstCoordsOrg, double& remainTimeOrg, std::vector<GaitParam::SwingState_enum>& swingState, std::vector<bool>& isLandingGainPhase, double& elapsedTime, double& relLandingHeight, double& wheelVel) const{
   // 今のgenCoordsとdstCoordsが異なるなら、将来のstepの位置姿勢をそれに合わせてずらす.
   // early touch downまたはlate touch downが発生していると、今のgenCoordsとdstCoordsが異なる.
   //   今のgenCoordsが正しい地形を表していることが期待されるので、将来のstepの位置姿勢をgenCoordsにあわせてずらしたくなる
@@ -368,6 +373,7 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
     srcCoords[i] = gaitParam.genCoords[i].value();
     dstCoordsOrg[i] = footstepNodesList[0].dstCoords[i];
     swingState[i] = GaitParam::LIFT_PHASE;
+    isLandingGainPhase[i] = false;
   }
   remainTimeOrg = footstepNodesList[0].remainTime;
   elapsedTime = 0.0;
@@ -1199,7 +1205,7 @@ void FootStepGenerator::checkEarlyTouchDown(std::vector<GaitParam::FootStepNodes
   if(footstepNodesList.size() > 1){
     for(int leg = 0; leg<NUM_LEGS; leg++){
       if(!footstepNodesList[0].isSupportPhase[leg] && footstepNodesList[1].isSupportPhase[leg] && //現在swing期で次support期
-         gaitParam.swingState[leg] == GaitParam::DOWN_PHASE && // DOWN_PHASE
+         gaitParam.isLandingGainPhase[leg] && // DOWN_PHASE
          footstepNodesList[0].stopCurrentPosition[leg] == false){ // まだ地面についていない
 
         if(actLegWrenchFilter[leg].value()[2] > this->contactDetectionThreshold /*generate frame. ロボットが受ける力*/) {// 力センサの値が閾値以上
