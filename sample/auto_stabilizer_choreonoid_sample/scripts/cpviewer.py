@@ -63,12 +63,12 @@ def reshape_list(lst):
     lst = lst*scale+750
     lst = lst.astype(np.int64)
     lst = lst.reshape(int(lst.shape[0]/2), 2)
-    lst += np.array([center_x, center_y])
+    lst += np.array([center_x, -center_y])
     return lst
 
 def reshape_pos(pos):
     global center_x, center_y
-    return (int(pos[0]*scale+750+center_x), int(pos[1]*scale+750+center_y))
+    return (int(pos[0]*scale+750+center_x), int(pos[1]*scale+750-center_y))
 
 args = sys.argv
 

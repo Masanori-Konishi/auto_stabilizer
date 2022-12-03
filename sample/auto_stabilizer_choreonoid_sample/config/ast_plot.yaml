@@ -33,6 +33,9 @@ ast_remainTimeOut:
 ast_genCoordsOut:
   data:
     - { log: ast_genCoordsOut, column: [0-11] }
+ast_legDistanceOut:
+  data:
+    - { log: ast_legDistanceOut, column: [0-2] }
 
 ast_tgtrlegWrenchOut:
   data:

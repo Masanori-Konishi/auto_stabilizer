@@ -59,6 +59,7 @@ AutoStabilizer::Ports::Ports() :
   m_steppableRegionNumLogOut_("steppableRegionNumLogOut", m_steppableRegionNumLog_),
   m_strideLimitationHullOut_("strideLimitationHullOut", m_strideLimitationHull_),
   m_cpViewerLogOut_("cpViewerLogOut", m_cpViewerLog_),
+  m_legDistanceOut_("legDistanceOut", m_legDistance_),
 
   m_AutoStabilizerServicePort_("AutoStabilizerService"),
 
@@ -109,6 +110,7 @@ RTC::ReturnCode_t AutoStabilizer::onInitialize(){
   this->addOutPort("steppableRegionNumLogOut", this->ports_.m_steppableRegionNumLogOut_);
   this->addOutPort("strideLimitationHullOut", this->ports_.m_strideLimitationHullOut_);
   this->addOutPort("cpViewerLogOut", this->ports_.m_cpViewerLogOut_);
+  this->addOutPort("legDistanceOut", this->ports_.m_legDistanceOut_);
   this->ports_.m_AutoStabilizerServicePort_.registerProvider("service0", "AutoStabilizerService", this->ports_.m_service0_);
   this->addPort(this->ports_.m_AutoStabilizerServicePort_);
   this->ports_.m_RobotHardwareServicePort_.registerConsumer("service0", "RobotHardwareService", this->ports_.m_robotHardwareService0_);
@@ -980,16 +982,20 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
     ports.m_remainTimeOut_.write();
     ports.m_genCoords_.tm = ports.m_qRef_.tm;
     ports.m_genCoords_.data.length(12);
-    cnoid::Position tmprlegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[RLEG], cnoid::Vector3::UnitZ());
-    cnoid::Position tmpllegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[LLEG], cnoid::Vector3::UnitZ());
     for (int i=0; i<3; i++) {
       ports.m_genCoords_.data[0+i] = gaitParam.genCoords[RLEG].value().translation()[i];
       ports.m_genCoords_.data[3+i] = gaitParam.genCoords[LLEG].value().translation()[i];
       ports.m_genCoords_.data[6+i] = gaitParam.genCoords[RLEG].getGoal().translation()[i];
       ports.m_genCoords_.data[9+i] = gaitParam.genCoords[LLEG].getGoal().translation()[i];
-      //ports.m_genCoords_.data[9+i] = (tmprlegPose.inverse() * tmpllegPose).translation()[i];
     }
     ports.m_genCoordsOut_.write();
+    ports.m_legDistance_.tm = ports.m_qRef_.tm;
+    cnoid::Position tmprlegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[RLEG], cnoid::Vector3::UnitZ());
+    cnoid::Position tmpllegPose = mathutil::orientCoordToAxis(gaitParam.actEEPose[LLEG], cnoid::Vector3::UnitZ());
+    ports.m_legDistance_.data.x = (tmprlegPose.inverse() * tmpllegPose).translation()[0];
+    ports.m_legDistance_.data.y = (tmprlegPose.inverse() * tmpllegPose).translation()[1];
+    ports.m_legDistance_.data.z = (tmprlegPose.inverse() * tmpllegPose).translation()[2];
+    ports.m_legDistanceOut_.write();
     {
       ports.m_captureRegion_.tm = ports.m_qRef_.tm;
       ports.m_captureRegion_.data.length(gaitParam.debugData.reachableCaptureRegionHull.size()*2);
