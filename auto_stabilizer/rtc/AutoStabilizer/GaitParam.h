@@ -61,6 +61,7 @@ public:
 public:
   cnoid::Position legOdom = cnoid::Position::Identity();
   int legOdomSupportLeg = RLEG;
+  bool legOdomUpdateFlag = true;
   // AutoStabilizerの中で計算更新される.
 
   // refToGenFrameConverter
