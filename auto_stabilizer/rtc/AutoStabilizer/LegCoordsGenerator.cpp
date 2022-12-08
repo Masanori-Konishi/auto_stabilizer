@@ -108,7 +108,7 @@ void LegCoordsGenerator::calcLegCoords(const GaitParam& gaitParam, double dt, bo
       genCoords[leg].getGoal(antecedentCoords, antecedentVel);
 
       //とりあえず置いとく変数
-      cnoid::Vector3 maxSwingVel = cnoid::Vector3{1.8, 1.8, 0.8}; //最大速度
+      cnoid::Vector3 maxSwingVel = cnoid::Vector3{1.8, 1.8, 0.5}; //最大速度
       double liftHeight = std::max(gaitParam.srcCoords[leg].translation()[2] + gaitParam.footstepNodesList[0].stepHeight[leg][0] * 0.5,
                                gaitParam.footstepNodesList[0].dstCoords[leg].translation()[2] + gaitParam.footstepNodesList[0].stepHeight[leg][1] * 0.5); // 足上げ高さ. generate frame
       double downHeight = gaitParam.footstepNodesList[0].dstCoords[leg].translation()[2] + gaitParam.footstepNodesList[0].stepHeight[leg][1] * 0.7;//SWING_PHASEから移行する高さ
