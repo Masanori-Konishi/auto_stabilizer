@@ -666,8 +666,12 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
       newTime = tmpTime;
       newPos = tmpPos;
       newShort = tmpShort;
-      //newHeight = steppableHeight[i];
-      newHeight = footstepNodesList[0].dstCoords[swingLeg].translation()[2];
+      if (gaitParam.steppableRegion.size() == 0) {
+        newHeight = footstepNodesList[0].dstCoords[swingLeg].translation()[2];
+      } else {
+        newHeight = std::max(gaitParam.steppableHeight[i], footstepNodesList[0].dstCoords[swingLeg].translation()[2]);
+      }
+      //newHeight = footstepNodesList[0].dstCoords[swingLeg].translation()[2];
     }
     if(isIn) break;
   }

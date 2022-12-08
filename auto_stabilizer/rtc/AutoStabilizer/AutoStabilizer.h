@@ -193,7 +193,7 @@ protected:
     Mode_enum current, previous, next;
     double remain_time;
   public:
-    ControlMode(){ reset(); abc_start_transition_time = 2.0; abc_stop_transition_time = 2.0; st_start_transition_time = 0.5; st_stop_transition_time = 2.0;}
+    ControlMode(){ reset(); abc_start_transition_time = 2.0; abc_stop_transition_time = 2.0; st_start_transition_time = 0.5; st_stop_transition_time = 10.0;}
     void reset(){ current = previous = next = MODE_IDLE; remain_time = 0;}
     bool setNextTransition(const Transition_enum request){
       switch(request){

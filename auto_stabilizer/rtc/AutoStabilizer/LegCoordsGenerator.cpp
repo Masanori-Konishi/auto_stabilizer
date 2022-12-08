@@ -152,7 +152,7 @@ void LegCoordsGenerator::calcLegCoords(const GaitParam& gaitParam, double dt, bo
       }
 
       //XY
-      if (swingState[leg] == GaitParam::SWING_PHASE) {//通常SWING_PHASEまでにX移動は終了する
+      if (swingState[leg] == GaitParam::SWING_PHASE && antecedentCoords.translation()[2] > dstCoords.translation()[2]) {//通常SWING_PHASEまでにX移動は終了する
         cnoid::Vector3 swingVel = cnoid::Vector3::Zero();
         for (int j = 0; j < 2; j++) {//X, Y
           swingVel[j] = std::min(maxSwingVel[j], std::max(-maxSwingVel[j], (dstCoords.translation() - antecedentCoords.translation())[j] / (gaitParam.footstepNodesList[0].remainTime - this->delayTimeOffset - gaitParam.footstepNodesList[0].stepHeight[leg][1] * 0.7 / maxSwingVel[2])));
