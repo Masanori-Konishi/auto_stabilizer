@@ -323,6 +323,10 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
   if ((!footstepNodesList[0].isSupportPhase[RLEG] || !footstepNodesList[0].isSupportPhase[LLEG]) && (footstepNodesList[1].isSupportPhase[RLEG] && footstepNodesList[1].isSupportPhase[LLEG])) {//片足->両足
     wheelVel = 0;
   }
+  if (stairTime != 0) {
+    footstepNodesList[1].remainTime += 0.15;
+  }
+  stairTime = 0;
 
   for(int i=1;i<footstepNodesList.size();i++){
     if(footstepNodesList[i].isSupportPhase[RLEG] && !footstepNodesList[i].isSupportPhase[LLEG]){ // LLEGが次に最初に遊脚になる
