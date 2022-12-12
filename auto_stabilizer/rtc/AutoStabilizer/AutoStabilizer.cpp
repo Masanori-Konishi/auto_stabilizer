@@ -616,7 +616,7 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
                                           gaitParam.footstepNodesList, gaitParam.srcCoords, gaitParam.dstCoordsOrg, gaitParam.remainTimeOrg, gaitParam.swingState, gaitParam.isLandingGainPhase, gaitParam.elapsedTime, gaitParam.prevSupportPhase, gaitParam.relLandingHeight, gaitParam.wheelVel, gaitParam.doubleSupportZmpOffset, gaitParam.legOdomUpdateFlag);
   footStepGenerator.calcFootSteps(gaitParam, dt, mode.isSTRunning(),
                                   gaitParam.debugData, //for log
-                                  gaitParam.footstepNodesList);
+                                  gaitParam.footstepNodesList, gaitParam.swingState);
   legCoordsGenerator.calcLegCoords(gaitParam, dt, mode.isSTRunning(),
                                    gaitParam.refZmpTraj, gaitParam.genCoords, gaitParam.swingState, gaitParam.isLandingGainPhase);
   legCoordsGenerator.calcCOMCoords(gaitParam, dt,
@@ -1536,7 +1536,7 @@ bool AutoStabilizer::setAutoStabilizerParam(const OpenHRP::AutoStabilizerService
   this->footStepGenerator_.touchVel = std::max(i_param.swing_trajectory_touch_vel, 0.001);
   if(!this->mode_.isABCRunning() || this->gaitParam_.isStatic()) this->footStepGenerator_.goalOffset = std::min(i_param.goal_offset, 0.0);
 
-  this->legCoordsGenerator_.delayTimeOffset = std::max(i_param.swing_trajectory_delay_time_offset, 0.0);
+  this->gaitParam_.delayTimeOffset = std::max(i_param.swing_trajectory_delay_time_offset, 0.0);
   this->legCoordsGenerator_.finalDistanceWeight = std::max(i_param.swing_trajectory_final_distance_weight, 0.01);
   this->legCoordsGenerator_.previewStepNum = std::max(i_param.preview_step_num, 2);
   this->legCoordsGenerator_.footGuidedBalanceTime = std::max(i_param.footguided_balance_time, 0.01);
@@ -1749,7 +1749,7 @@ bool AutoStabilizer::getAutoStabilizerParam(OpenHRP::AutoStabilizerService::Auto
   i_param.goal_offset = this->footStepGenerator_.goalOffset;
   i_param.swing_trajectory_touch_vel = this->footStepGenerator_.touchVel;
 
-  i_param.swing_trajectory_delay_time_offset = this->legCoordsGenerator_.delayTimeOffset;
+  i_param.swing_trajectory_delay_time_offset = this->gaitParam_.delayTimeOffset;
   i_param.swing_trajectory_final_distance_weight = this->legCoordsGenerator_.finalDistanceWeight;
   i_param.preview_step_num = this->legCoordsGenerator_.previewStepNum;
   i_param.footguided_balance_time = this->legCoordsGenerator_.footGuidedBalanceTime;

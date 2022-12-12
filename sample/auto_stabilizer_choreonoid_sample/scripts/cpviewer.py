@@ -138,11 +138,26 @@ while True:
     #for j in range(zmplimit.shape[0]):
     #    cv2.circle(img, (zmplimit[j][0], zmplimit[j][1]), 5, (255, 0, 255), -1)
 
+    img = cv2.flip(img, 0)
     if mode == "play":
         cv2.circle(img, (10, 10), 5, (0, 1, 0), -1)
     elif mode == "stop":
         cv2.circle(img, (10, 10), 5, (0, 0, 1), -1)
-    img = cv2.flip(img, 0)
+
+    swingstate = ""
+    if cpviewerdata[i][20] == 0:
+        swingstate = "swing"
+    elif cpviewerdata[i][20] == 1:
+        swingstate = "height_fix"
+    elif cpviewerdata[i][20] == 2:
+        swingstate = "down"
+    elif cpviewerdata[i][20] == 3:
+        swingstate = "ground"
+    else:
+        swingstate = str(cpviewerdata[i][20])
+    cv2.putText(img, text=str(cpviewerdata[i][19]), org=(20,40), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.8, color=(1,1,1), thickness=2)
+    cv2.putText(img, text=swingstate, org=(20,70), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.8, color=(1,1,1), thickness=2)
+    cv2.putText(img, str(cpviewerdata[i][21]), org=(20,100), fontFace=cv2.FONT_HERSHEY_SIMPLEX, fontScale=0.8, color=(1,1,1), thickness=2)
     cv2.imshow('img', img)
     cv2.setMouseCallback("img", mousePoints)
     key = cv2.waitKey(1)
@@ -177,7 +192,8 @@ while True:
     elif key == 32:
         mode = "play"
     elif key == 13:
-        print(cpviewerdata[i][0], int(1000* (gencoordsdata[i][1] - cpviewerdata[i][11])), int(1000*(cpviewerdata[i][15] - cpviewerdata[i][17])), int(1000*(gencoordsdata[i][4] - cpviewerdata[i][13])), " : ", int(1000*((cpviewerdata[i][15] - gencoordsdata[i][1]) - (cpviewerdata[i][17] - cpviewerdata[i][11]))), int(1000*((cpviewerdata[i][15] - gencoordsdata[i][4]) - (cpviewerdata[i][17] - cpviewerdata[i][13])))) #その他cpviewerdataのデバッグ情報表示
+        #print(cpviewerdata[i][0], int(1000* (gencoordsdata[i][1] - cpviewerdata[i][11])), int(1000*(cpviewerdata[i][15] - cpviewerdata[i][17])), int(1000*(gencoordsdata[i][4] - cpviewerdata[i][13])), " : ", int(1000*((cpviewerdata[i][15] - gencoordsdata[i][1]) - (cpviewerdata[i][17] - cpviewerdata[i][11]))), int(1000*((cpviewerdata[i][15] - gencoordsdata[i][4]) - (cpviewerdata[i][17] - cpviewerdata[i][13])))) #その他cpviewerdataのデバッグ情報表示
+        print(cpviewerdata[i][0], cpviewerdata[i][23:40])
     elif key == 27:
         break
     #if key != -1:

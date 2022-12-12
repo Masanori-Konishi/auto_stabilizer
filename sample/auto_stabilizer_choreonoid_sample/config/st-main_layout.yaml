@@ -29,12 +29,12 @@ main:
 
   cog zmp Z:
     legends:
-      - { key: ast_genCogOut, id: [2]}
-      - { key: ast_genDcmOut, id: [2]}
-      - { key: ast_genZmpOut, id: [2]}
-      - { key: ast_tgtZmpOut, id: [2]}
-      - { key: ast_actCogOut, id: [2]}
-      - { key: ast_actDcmOut, id: [2]}
+      #- { key: ast_genCogOut, id: [2]}
+      #- { key: ast_genDcmOut, id: [2]}
+      #- { key: ast_genZmpOut, id: [2]}
+      #- { key: ast_tgtZmpOut, id: [2]}
+      #- { key: ast_actCogOut, id: [2]}
+      #- { key: ast_actDcmOut, id: [2]}
       - { key: ast_dstLandingPosOut, id: [2]}
       - { key: ast_dstLandingPosOut, id: [5]}
       - { key: ast_genCoordsOut, id: [2]}
