@@ -89,7 +89,13 @@ void LegCoordsGenerator::calcLegCoords(const GaitParam& gaitParam, double dt, bo
   std::vector<bool> isLandingGainPhase = gaitParam.isLandingGainPhase;
   for(int leg=0;leg<NUM_LEGS;leg++){
     if(gaitParam.footstepNodesList[0].stopCurrentPosition[leg]){ // for early touch down. 今の位置に止める
-      genCoords[leg].reset(genCoords[leg].value());
+      cnoid::Position tmp = genCoords[leg].value();
+      for(int i=0;i<3;i++){
+        double tmpvel = std::max(-gaitParam.maxSwingVel[i], std::min(gaitParam.maxSwingVel[i], (gaitParam.footstepNodesList[0].dstCoords[leg].translation()[i] - genCoords[leg].value().translation()[i]) / (gaitParam.footstepNodesList[0].remainTime + dt)));
+        tmp.translation()[i] += tmpvel * dt;
+      }
+      //tmp.translation() = (genCoords[leg].value().translation() * (gaitParam.footstepNodesList[0].remainTime/*-dt*/) + gaitParam.footstepNodesList[0].dstCoords[leg].translation() * dt) / (gaitParam.footstepNodesList[0].remainTime + dt);
+      genCoords[leg].reset(tmp);
       continue;
     }
     if(gaitParam.footstepNodesList[0].isSupportPhase[leg]) { // 支持脚
