@@ -1538,7 +1538,7 @@ bool AutoStabilizer::setAutoStabilizerParam(const OpenHRP::AutoStabilizerService
 
   this->gaitParam_.delayTimeOffset = std::max(i_param.swing_trajectory_delay_time_offset, 0.0);
   this->legCoordsGenerator_.finalDistanceWeight = std::max(i_param.swing_trajectory_final_distance_weight, 0.01);
-  this->legCoordsGenerator_.previewStepNum = std::max(i_param.preview_step_num, 2);
+  this->legCoordsGenerator_.previewStepNum = std::max(i_param.preview_step_num, 1);
   this->legCoordsGenerator_.footGuidedBalanceTime = std::max(i_param.footguided_balance_time, 0.01);
 
   if(i_param.eefm_body_attitude_control_gain.length() == 2 &&
