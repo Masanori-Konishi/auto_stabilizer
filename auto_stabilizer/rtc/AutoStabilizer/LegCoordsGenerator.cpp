@@ -154,7 +154,8 @@ void LegCoordsGenerator::calcLegCoords(const GaitParam& gaitParam, double dt, bo
       if (swingState[leg] == GaitParam::SWING_PHASE || swingState[leg] == GaitParam::HEIGHT_FIX_SWING_PHASE) {
         goalVel = (cnoid::Vector6() << 0.0, 0.0, 0.0, 0.0, 0.0, 0.0).finished(); // pはgenerate frame. RはgoalCoords frame.
       } else if (swingState[leg] == GaitParam::DOWN_PHASE){
-        goalVel = (cnoid::Vector6() << 0.0, 0.0, (gaitParam.footstepNodesList[0].remainTime - gaitParam.delayTimeOffset /*-dt*/) * antecedentVel[2] + dt * (-gaitParam.footstepNodesList[0].touchVel[leg]), 0.0, 0.0, 0.0).finished(); // pはgenerate frame. RはgoalCoords frame.
+        //goalVel = (cnoid::Vector6() << 0.0, 0.0, (gaitParam.footstepNodesList[0].remainTime - gaitParam.delayTimeOffset /*-dt*/) * antecedentVel[2] + dt * (-gaitParam.footstepNodesList[0].touchVel[leg]), 0.0, 0.0, 0.0).finished(); // pはgenerate frame. RはgoalCoords frame.
+        goalVel = (cnoid::Vector6() << 0.0, 0.0, 0.9 * antecedentVel[2] + 0.1 * (-gaitParam.footstepNodesList[0].touchVel[leg]), 0.0, 0.0, 0.0).finished();
       } else {
         goalVel = (cnoid::Vector6() << 0.0, 0.0, -gaitParam.footstepNodesList[0].touchVel[leg], 0.0, 0.0, 0.0).finished(); // pはgenerate frame. RはgoalCoords frame.
       }

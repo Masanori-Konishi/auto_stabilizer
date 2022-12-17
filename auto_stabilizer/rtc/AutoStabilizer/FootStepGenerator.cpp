@@ -608,7 +608,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   //修正前目標着地位置
   //基本的に前回の修正後目標着地位置を用いるが、少しずつオリジナルの目標着地位置に近づけていく
   cnoid::Vector3 destPos = 0.995 * footstepNodesList[0].dstCoords[swingLeg].translation() + 0.005 * gaitParam.dstCoordsOrg[swingLeg].translation();
-  double destTime = 0.995 * footstepNodesList[0].remainTime + 0.005 * std::max(0.0, (gaitParam.remainTimeOrg + stairTime) - gaitParam.elapsedTime);
+  double destTime = 0.995 * footstepNodesList[0].remainTime + 0.005 * std::max(0.0, (gaitParam.remainTimeOrg/* + stairTime*/) - gaitParam.elapsedTime);
   debugData.cpViewerLog[8] = destPos[0];
   debugData.cpViewerLog[9] = destPos[1];
 
@@ -1109,7 +1109,7 @@ double FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>
     swingZMinTime = std::max(0.0, (double)(swingPos[2] - stepHeight)) / gaitParam.maxSwingVel[2];
     liftTime = 0;
   }
-  tmin = liftTime + gaitParam.delayTimeOffset + swingXYMarginTime + std::min(0.05, gaitParam.footstepNodesList[1].remainTime * 0.2); //0.05は遅着きをケアするため。遊脚が動けない時間
+  tmin = liftTime + gaitParam.delayTimeOffset + swingXYMarginTime + std::min(0.1, gaitParam.footstepNodesList[1].remainTime * 0.5); //0.05は遅着きをケアするため。遊脚が動けない時間
 
   //supportPoseHorizontal座標系に直す（xy分離のため） これ以降Z成分に意味がなくなる
   cnoid::Vector3 cp = supportPoseHorizontal.inverse() * actDCM;
@@ -1137,9 +1137,9 @@ double FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>
   std::vector<std::vector<double> > samplingTime = std::vector<std::vector<double> >{std::vector<double>(), std::vector<double>(), std::vector<double>()};//0...x, 1...y, 2...merge
   if (gaitParam.swingState[swingLeg] != GaitParam::SWING_PHASE) {
     //samplingTime[2].push_back(swingZMinTime + gaitParam.delayTimeOffset + std::min(0.05, gaitParam.footstepNodesList[1].remainTime * 0.2));
-    samplingTime[2].push_back(gaitParam.footstepNodesList[0].remainTime + std::min(0.05, gaitParam.footstepNodesList[1].remainTime * 0.2));
+    samplingTime[2].push_back(gaitParam.footstepNodesList[0].remainTime + std::min(0.1, gaitParam.footstepNodesList[1].remainTime * 0.5));
   } else {
-    double minTime = swingZMinTime + gaitParam.delayTimeOffset + std::min(0.05, gaitParam.footstepNodesList[1].remainTime * 0.2);
+    double minTime = swingZMinTime + gaitParam.delayTimeOffset + std::min(0.1, gaitParam.footstepNodesList[1].remainTime * 0.5);
     double maxTime = 10.0; //無限大を避けるため
 
     //CRが存在するMinMaxTimeを計算し、CR凸包のためのサンプリングタイムを決定
@@ -1390,7 +1390,7 @@ double FootStepGenerator::modifyTime(double& retTime, bool& phaseChangeFlag, con
     }
   }
   cpMinRemainTime[2] = std::max(cpMinRemainTime[0], cpMinRemainTime[1]) - gaitParam.footstepNodesList[1].remainTime; //cp目標は次の支持脚の終わりでも良い
-  cpMaxRemainTime[2] = std::min(cpMaxRemainTime[0], cpMaxRemainTime[1]) - std::min(0.05, gaitParam.footstepNodesList[1].remainTime * 0.2); //遅着きケア
+  cpMaxRemainTime[2] = std::min(cpMaxRemainTime[0], cpMaxRemainTime[1]) - std::min(0.1, gaitParam.footstepNodesList[1].remainTime * 0.5); //遅着きケア
 
   double returnTime = dstTime;
   if (cpMaxRemainTime[2] < swingMinRemainTime || constMaxTime < cpMinRemainTime[2]) { //cp条件を無視
@@ -1483,14 +1483,14 @@ void FootStepGenerator::checkEarlyTouchDown(std::vector<GaitParam::FootStepNodes
       cnoid::Vector3 genDCM = gaitParam.genCog + gaitParam.genCogVel / gaitParam.omega;
 
       if(footstepNodesList[1].isSupportPhase[RLEG] && !footstepNodesList[1].isSupportPhase[LLEG] && //次が右足支持期
-               gaitParam.elapsedTime <= 10.0 && //最長時間
+               gaitParam.elapsedTime <= 0.3 && //最長時間
                mathutil::isInsideHull(actDCM, safeDoubleLegHull) && // actDCMが両足支持凸包内
                !mathutil::isInsideHull(actDCM, safeSingleLegHull[RLEG])){ // actDCMが右足支持凸包外
         footstepNodesList[0].remainTime += dt;
         doubleSupportZmpOffset += 0.01 * (genDCM - actDCM);
         doubleSupportZmpOffset[2] = 0;
       } else if(!footstepNodesList[1].isSupportPhase[RLEG] && footstepNodesList[1].isSupportPhase[LLEG] && //次が左足支持期
-               gaitParam.elapsedTime <= 10.0 && //最長時間
+               gaitParam.elapsedTime <= 0.3 && //最長時間
                mathutil::isInsideHull(actDCM, safeDoubleLegHull) && // actDCMが両足支持凸包内
                !mathutil::isInsideHull(actDCM, safeSingleLegHull[LLEG])){ // actDCMが右足支持凸包外
         footstepNodesList[0].remainTime += dt;
