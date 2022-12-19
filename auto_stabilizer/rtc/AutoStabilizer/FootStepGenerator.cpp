@@ -1371,9 +1371,9 @@ double FootStepGenerator::modifyTime(double& retTime, bool& phaseChangeFlag, con
   double swingMinRemainTime = std::max({swingXMinRemainTime, swingYMinRemainTime, swingZMinRemainTime});
 
   //SWING_PHASEの時、通常の遊脚軌道を保つことができるRemainTime 無視しても良い
-  //MAXの８割の速度でXY移動するものと仮定
-  double swingXBetterRemainTime = liftTime + std::max(downTime, swingXYMarginTime) + std::abs((dstPos - nowPos)[0]) / (gaitParam.maxSwingVel[0]*0.8) + gaitParam.delayTimeOffset;
-  double swingYBetterRemainTime = liftTime + std::max(downTime, swingXYMarginTime) + std::abs((dstPos - nowPos)[1]) / (gaitParam.maxSwingVel[1]*0.8) + gaitParam.delayTimeOffset;
+  //MAXの５割の速度でXY移動するものと仮定
+  double swingXBetterRemainTime = liftTime + std::max(downTime, swingXYMarginTime) + std::abs((dstPos - nowPos)[0]) / (gaitParam.maxSwingVel[0]*0.5) + gaitParam.delayTimeOffset;
+  double swingYBetterRemainTime = liftTime + std::max(downTime, swingXYMarginTime) + std::abs((dstPos - nowPos)[1]) / (gaitParam.maxSwingVel[1]*0.5) + gaitParam.delayTimeOffset;
   double swingXYBetterRemainTime = std::max(swingXBetterRemainTime, swingYBetterRemainTime);
 
   double constMaxTime = 10.0; //無限大を防ぐ
