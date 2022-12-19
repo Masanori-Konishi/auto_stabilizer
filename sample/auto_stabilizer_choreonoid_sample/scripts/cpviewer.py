@@ -193,7 +193,7 @@ while True:
         mode = "play"
     elif key == 13:
         #print(cpviewerdata[i][0], int(1000* (gencoordsdata[i][1] - cpviewerdata[i][11])), int(1000*(cpviewerdata[i][15] - cpviewerdata[i][17])), int(1000*(gencoordsdata[i][4] - cpviewerdata[i][13])), " : ", int(1000*((cpviewerdata[i][15] - gencoordsdata[i][1]) - (cpviewerdata[i][17] - cpviewerdata[i][11]))), int(1000*((cpviewerdata[i][15] - gencoordsdata[i][4]) - (cpviewerdata[i][17] - cpviewerdata[i][13])))) #その他cpviewerdataのデバッグ情報表示
-        print(cpviewerdata[i][0], cpviewerdata[i][23:40])
+        print(cpviewerdata[i][0], cpviewerdata[i][23:41])
     elif key == 27:
         break
     #if key != -1:

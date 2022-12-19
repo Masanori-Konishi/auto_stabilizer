@@ -570,6 +570,21 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   // dx = w ( x - z - l)
   cnoid::Vector3 actDCM = gaitParam.actCog + gaitParam.actCogVel.value() / gaitParam.omega;
 
+  cnoid::Vector3 prevPos = footstepNodesList[0].dstCoords[swingLeg].translation();
+  double prevHeight = -1e10;
+  double prevMinLength = 0.010; //前回posからの距離が10mm以内の足場と同じ高さの足場しか同じ足場としない
+  for(int i=0;i<gaitParam.steppableRegion.size();i++){
+    if (mathutil::isInsideHull(prevPos, gaitParam.steppableRegion[i])) {
+      prevHeight = 0.01 * std::floor(100 * (gaitParam.steppableHeight[i] + steppableHeightError));
+      break;
+    }
+    cnoid::Vector3 tmpPos = mathutil::calcNearestPointOfHull(prevPos, gaitParam.steppableRegion[i]);
+    if ((tmpPos - prevPos).head(2).norm() < prevMinLength) {
+      prevHeight = 0.01 * std::floor(100 * (gaitParam.steppableHeight[i] + steppableHeightError));
+      prevMinLength = (tmpPos - prevPos).head(2).norm();
+    }
+  }
+
   //double minTime = std::max(this->overwritableMinTime, this->overwritableMinStepTime + stairTime - gaitParam.elapsedTime); // 次indexまでの残り時間がthis->overwritableMinTimeを下回るようには着地時間修正を行わない. 現index開始時からの経過時間がthis->overwritableStepMinTimeを下回るようには着地時間修正を行わない.
   //minTime = std::min(minTime, footstepNodesList[0].remainTime); // もともと下回っている場合には、その値を下回るようには着地時刻修正を行わない.
   //double maxTime = std::max(this->overwritableMaxStepTime - gaitParam.elapsedTime, minTime); // 現index開始時からの経過時間がthis->overwritableStepMaxTimeを上回るようには着地時間修正を行わない.
@@ -591,7 +606,11 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   //基本高さのみ計算
   {
     std::vector<cnoid::Vector3> tmpReachableCaptureRegionHull = std::vector<cnoid::Vector3>();
-    calcReachableCaptureRegion(tmpReachableCaptureRegionHull, 0.01 * std::floor(100 * footstepNodesList[0].dstCoords[swingLeg].translation()[2]), actDCM, gaitParam, debugData);
+    if (prevHeight > -1e5) {
+      calcReachableCaptureRegion(tmpReachableCaptureRegionHull, prevHeight, actDCM, gaitParam, debugData);
+    } else {//prevHeightがない
+      calcReachableCaptureRegion(tmpReachableCaptureRegionHull, 0.01 * std::floor(100 * footstepNodesList[0].dstCoords[swingLeg].translation()[2]), actDCM, gaitParam, debugData);
+    }
     reachableCaptureRegionHulls.insert(std::make_pair(0.01 * std::floor(100 * footstepNodesList[0].dstCoords[swingLeg].translation()[2]), tmpReachableCaptureRegionHull));
     debugData.reachableCaptureRegionHull = tmpReachableCaptureRegionHull; // for debug
   }
@@ -618,14 +637,6 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   double newHeight = footstepNodesList[0].dstCoords[swingLeg].translation()[2];
   bool newPhaseChangeFlag = false;
   int newDebugState = 0;
-
-  cnoid::Vector3 prevPos = footstepNodesList[0].dstCoords[swingLeg].translation();
-  int prevHeight = 0;
-  for(int i=0;i<gaitParam.steppableRegion.size();i++){
-    if (mathutil::isInsideHull(prevPos, gaitParam.steppableRegion[i])) {
-      prevHeight = 0.01 * std::floor(100 * (gaitParam.steppableHeight[i] + steppableHeightError));
-    }
-  }
 
   for(int i=0;i<std::max(1, (int)(gaitParam.steppableRegion.size()));i++){ //gaitParam.steppableRegion.size()が0のときも１度だけ行う
     cnoid::Vector3 tmpPos = destPos;
@@ -683,7 +694,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
             (genSafeSupportLegHull[3] - genSafeSupportLegHull[4]).cross(tmpPos - genSafeSupportLegHull[4])[0] * (genSafeSupportLegHull[3] - genSafeSupportLegHull[4]).cross(tmpcpPos - genSafeSupportLegHull[4])[0] < 0 ) {
 
           tmpPos = mathutil::calcNearestPointOfHull(nowPos, targetRegion); //現在位置に一番近い場所
-          tmpShort = cnoid::Vector3(1e+10, 1e+10, 0) + cnoid::Vector3((nowPos - tmpPos).norm(), 0, 0);
+          tmpShort = cnoid::Vector3(1e+10, 1e+10, 0) + cnoid::Vector3((nowPos - tmpPos).head(2).norm(), 0, 0);
           tmpTime = 0;
           tmpDebugState = 2;
         }
@@ -773,6 +784,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
   debugData.cpViewerLog[20] = footstepNodesList[0].remainTime;
   debugData.cpViewerLog[21] = gaitParam.elapsedTime;
   debugData.cpViewerLog[37] = newPhaseChangeFlag;
+  debugData.cpViewerLog[38] = prevHeight;
 
   //landingHeightから受け取った値を用いて着地姿勢を変更
   if (gaitParam.relLandingHeight > -1e+10) {
