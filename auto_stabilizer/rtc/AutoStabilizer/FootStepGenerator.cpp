@@ -711,17 +711,35 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
       if (swingState[swingLeg] == GaitParam::SWING_PHASE) {
         modifyTime(tmpTime, tmpPhaseChangeFlag, tmpTime, cnoid::Vector3(tmpPos[0], tmpPos[1], flooredSteppableHeight), actDCM, gaitParam, debugData);
       }
+    } else if (reachableCaptureRegionHulls.at(flooredSteppableHeight).size() == 2) { //RCRは存在しないので、できるだけ早く最善の場所へ行く
+      std::vector<cnoid::Vector3> targetRegion;
+      cnoid::Vector3 tmpcpPos = mathutil::calcNearestPointOfHull(destPos, reachableCaptureRegionHulls[flooredSteppableHeight]);
+      tmpPos = mathutil::calcNearestPointOfHull(tmpcpPos, tmpSteppableRegion);
 
+      //支持脚側に倒れそうになったときは現在位置に即下りる
+      if ((genSafeSupportLegHull[0] - genSafeSupportLegHull[1]).cross(tmpPos - genSafeSupportLegHull[1])[0] * (genSafeSupportLegHull[0] - genSafeSupportLegHull[1]).cross(tmpcpPos - genSafeSupportLegHull[1])[0] < 0 &&
+          (genSafeSupportLegHull[3] - genSafeSupportLegHull[4]).cross(tmpPos - genSafeSupportLegHull[4])[0] * (genSafeSupportLegHull[3] - genSafeSupportLegHull[4]).cross(tmpcpPos - genSafeSupportLegHull[4])[0] < 0 ) {
+
+        tmpPos = mathutil::calcNearestPointOfHull(nowPos, targetRegion); //現在位置に一番近い場所
+        tmpShort = cnoid::Vector3(1e+3, 1e+3, 0) + cnoid::Vector3((nowPos - tmpPos).head(2).norm(), 0, 0);
+        modifyTime(tmpTime, tmpPhaseChangeFlag, 0, cnoid::Vector3(tmpPos[0], tmpPos[1], flooredSteppableHeight), actDCM, gaitParam, debugData); //できるだけ早く着地
+        tmpDebugState = 2;
+      } else {
+        tmpShort = cnoid::Vector3(1e+3, 1e+3, 0) + cnoid::Vector3((tmpcpPos - tmpPos).head(2).norm(), 0, 0);
+        modifyTime(tmpTime, tmpPhaseChangeFlag, 0, cnoid::Vector3(tmpPos[0], tmpPos[1], flooredSteppableHeight), actDCM, gaitParam, debugData); //できるだけ早く着地
+        tmpDebugState = 6;
+      }
     } else { //reachableCaptureRegionが存在しない
       if (swingState[swingLeg] == GaitParam::SWING_PHASE) {
         //できるだけ早く現在目標位置に着地する
         std::vector<cnoid::Vector3> targetRegion = tmpSteppableRegion;
-        tmpPos = mathutil::calcNearestPointOfHull(destPos, targetRegion); //目標位置に一番近い場所
+        tmpPos = mathutil::calcNearestPointOfHull(footstepNodesList[0].dstCoords[swingLeg].translation(), targetRegion); //現在目標位置に一番近い場所
         tmpShort = cnoid::Vector3(1e+11, 1e+11, 0); //Short優先度一番低く TODO これをそのまま角運動量補正に使わないこと！！！！！
         modifyTime(tmpTime, tmpPhaseChangeFlag, 0, cnoid::Vector3(tmpPos[0], tmpPos[1], flooredSteppableHeight), actDCM, gaitParam, debugData); //できるだけ早く着地
         tmpDebugState = 4;
       } else {
         //着地位置修正をせずそのまま下りる
+        tmpPos = footstepNodesList[0].dstCoords[swingLeg].translation();
         tmpShort = cnoid::Vector3(1e+11, 1e+11, 0); //Short優先度一番低く TODO これをそのまま角運動量補正に使わないこと！！！！！
         tmpDebugState = 5;
       }
@@ -749,7 +767,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
 
   if(newPos.head(2).norm() > 1e+8){
     //着地位置修正を行わない
-    debugData.cpViewerLog[18] = 6;
+    debugData.cpViewerLog[18] = 7;
     return;
   }
 
@@ -1089,6 +1107,7 @@ void FootStepGenerator::modifyFootSteps(std::vector<GaitParam::FootStepNodes>& f
 //遊脚可到達性、支持脚等速移動（脚車輪）を考慮したCaptureRegion計算
 //足平が長方形であると仮定、遊脚軌道がXY分離可能と仮定
 double FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>& reachableCaptureRegionHull, const double& stepHeight, const cnoid::Vector3& actDCM, const GaitParam& gaitParam, GaitParam::DebugData& debugData) const {
+  double crErrorNum = 0;
   //遊脚・支持脚
   int swingLeg = gaitParam.footstepNodesList[0].isSupportPhase[RLEG] ? LLEG : RLEG;
   int supportLeg = (swingLeg == RLEG) ? LLEG : RLEG;
@@ -1149,6 +1168,10 @@ double FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>
   std::vector<std::vector<double> > samplingTime = std::vector<std::vector<double> >{std::vector<double>(), std::vector<double>(), std::vector<double>()};//0...x, 1...y, 2...merge
   if (gaitParam.swingState[swingLeg] != GaitParam::SWING_PHASE) {
     //samplingTime[2].push_back(swingZMinTime + gaitParam.delayTimeOffset + std::min(0.05, gaitParam.footstepNodesList[1].remainTime * 0.2));
+    if (gaitParam.footstepNodesList[0].remainTime + std::min(0.1, gaitParam.footstepNodesList[1].remainTime * 0.5) <= tmin) {
+      reachableCaptureRegionHull = std::vector<cnoid::Vector3>();
+      return 3;
+    }
     samplingTime[2].push_back(gaitParam.footstepNodesList[0].remainTime + std::min(0.1, gaitParam.footstepNodesList[1].remainTime * 0.5));
   } else {
     double minTime = swingZMinTime + gaitParam.delayTimeOffset + std::min(0.1, gaitParam.footstepNodesList[1].remainTime * 0.5);
@@ -1192,42 +1215,50 @@ double FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>
 
     //CRない時
     if (extTime[0] != 0 || extTime[1] != 0) {
-      reachableCaptureRegionHull = std::vector<cnoid::Vector3>();
-      return 1;
-    }
-
-    //min max time との比較
-    for (int i = 0; i < 2; i++) {
-      if (samplingTime[i].back() < minTime || maxTime < samplingTime[i][0]) { //遊脚ZのminmaxTimeの範囲にない
-        reachableCaptureRegionHull = std::vector<cnoid::Vector3>();
-        return 2;
+      crErrorNum = 1;
+      double addTime = 0;
+      if (extTime[0] != 0 &&  extTime[1] != 0) {
+        addTime = std::min(extTime[0], extTime[1]);
+      } else {
+        addTime = std::max(extTime[0], extTime[1]);
       }
-      if (samplingTime[i][0] < minTime) samplingTime[i].push_back(minTime);
-      if (maxTime < samplingTime[i].back()) samplingTime[i].push_back(maxTime);
-      std::sort(samplingTime[i].begin(), samplingTime[i].end());
-    }
-
-    if(samplingTime[0].size() < 2 || samplingTime[1].size() < 2) { //起きないはず
-      std::cout << "ssssssssssssssssssaaaaaaaaaaaaaaaaaaaaaaammmmmmmmmmmmmmmmmmmmmppppppppppppppppppppplllllllllllllllllllllllliiiiiiiiiiiiiiiiiiiiinnnnnnnnnnnnnnnnnnnnnggggggggggggggggeeeeeeeeeeeeeeerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrroooooooooooooooooooooooooorrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr" << std::endl;
-      samplingTime[0].push_back(tmin);
-      samplingTime[0].push_back(maxTime);
-      samplingTime[1].push_back(tmin);
-      samplingTime[1].push_back(maxTime);
-      std::cout << samplingTime[0].size() << " " << samplingTime[1].size() << std::endl;
-    }
-
-    double tmpMin = std::max(std::max(samplingTime[0][0], samplingTime[1][0]), minTime);
-    double tmpMax = std::min(std::min(samplingTime[0].back(), samplingTime[1].back()), maxTime);
-    for (int i = 0; i < 2; i++) {
-      for (int j = 0; j < samplingTime[i].size(); j++) {
-        if (tmpMin <= samplingTime[i][j] && samplingTime[i][j] <= tmpMax) samplingTime[2].push_back(samplingTime[i][j]);
+      addTime = std::max(minTime, addTime);
+      samplingTime[2].push_back(addTime);
+    } else {
+      //min max time との比較
+      for (int i = 0; i < 2; i++) {
+        if (samplingTime[i].back() < minTime || maxTime < samplingTime[i][0]) { //遊脚ZのminmaxTimeの範囲にない
+          crErrorNum = 2;
+          reachableCaptureRegionHull = std::vector<cnoid::Vector3>();
+          return 2;
+        }
+        if (samplingTime[i][0] < minTime) samplingTime[i].push_back(minTime);
+        if (maxTime < samplingTime[i].back()) samplingTime[i].push_back(maxTime);
+        std::sort(samplingTime[i].begin(), samplingTime[i].end());
       }
-    }
 
-    for (int i = 1; i < 4; i++) { //補間
-      samplingTime[2].push_back(tmpMin + (tmpMax - tmpMin) * double(i) / 4.0);
+      if(samplingTime[0].size() < 2 || samplingTime[1].size() < 2) { //起きないはず
+        std::cout << "ssssssssssssssssssaaaaaaaaaaaaaaaaaaaaaaammmmmmmmmmmmmmmmmmmmmppppppppppppppppppppplllllllllllllllllllllllliiiiiiiiiiiiiiiiiiiiinnnnnnnnnnnnnnnnnnnnnggggggggggggggggeeeeeeeeeeeeeeerrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrroooooooooooooooooooooooooorrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrrr" << std::endl;
+        samplingTime[0].push_back(tmin);
+        samplingTime[0].push_back(maxTime);
+        samplingTime[1].push_back(tmin);
+        samplingTime[1].push_back(maxTime);
+        std::cout << samplingTime[0].size() << " " << samplingTime[1].size() << std::endl;
+      }
+
+      double tmpMin = std::max(std::max(samplingTime[0][0], samplingTime[1][0]), minTime);
+      double tmpMax = std::min(std::min(samplingTime[0].back(), samplingTime[1].back()), maxTime);
+      for (int i = 0; i < 2; i++) {
+        for (int j = 0; j < samplingTime[i].size(); j++) {
+          if (tmpMin <= samplingTime[i][j] && samplingTime[i][j] <= tmpMax) samplingTime[2].push_back(samplingTime[i][j]);
+        }
+      }
+
+      for (int i = 1; i < 4; i++) { //補間
+        samplingTime[2].push_back(tmpMin + (tmpMax - tmpMin) * double(i) / 4.0);
+      }
+      std::sort(samplingTime[2].begin(), samplingTime[2].end());
     }
-    std::sort(samplingTime[2].begin(), samplingTime[2].end());
   }
 
   //CR凸包を計算
@@ -1243,16 +1274,28 @@ double FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>
     double swMaxY = fsw(samplingTime[2][i], tmin, gaitParam.maxSwingVel[1], swingPos[1]);
     double swMinY = fsw(samplingTime[2][i], tmin, -gaitParam.maxSwingVel[1], swingPos[1]);
 
-    if (std::max(cpMinX, swMinX) <= std::min(cpMaxX, swMaxX) && std::max(cpMinY, swMinY) <= std::min(swMaxY, swMaxY)) {
-      cpList.emplace_back(cv::Point2f(std::max(cpMinX, swMinX), std::max(cpMinY, swMinY)));
-      cpList.emplace_back(cv::Point2f(std::max(cpMinX, swMinX), std::min(cpMaxY, swMaxY)));
-      cpList.emplace_back(cv::Point2f(std::min(cpMaxX, swMaxX), std::max(cpMinY, swMinY)));
-      cpList.emplace_back(cv::Point2f(std::min(cpMaxX, swMaxX), std::min(cpMaxY, swMaxY)));
-    } else {
-      //SWING_PHASE以外のときのみ起きうる
-      //std::cout << "okasiiyo " << cpMaxX << " " << cpMinX << " " << cpMaxY << " " << cpMinY << " " << swMaxX << " " << swMinX << " " << swMaxY << " " << swMinY << std::endl;
-      reachableCaptureRegionHull = std::vector<cnoid::Vector3>();
-      return 3;
+    //if (std::max(cpMinX, swMinX) <= std::min(cpMaxX, swMaxX) && std::max(cpMinY, swMinY) <= std::min(swMaxY, swMaxY)) {
+    //  cpList.emplace_back(cv::Point2f(std::max(cpMinX, swMinX), std::max(cpMinY, swMinY)));
+    //  cpList.emplace_back(cv::Point2f(std::max(cpMinX, swMinX), std::min(cpMaxY, swMaxY)));
+    //  cpList.emplace_back(cv::Point2f(std::min(cpMaxX, swMaxX), std::max(cpMinY, swMinY)));
+    //  cpList.emplace_back(cv::Point2f(std::min(cpMaxX, swMaxX), std::min(cpMaxY, swMaxY)));
+    //} else {
+    //  //SWING_PHASE以外のときのみ起きうる
+    //  //std::cout << "okasiiyo " << cpMaxX << " " << cpMinX << " " << cpMaxY << " " << cpMinY << " " << swMaxX << " " << swMinX << " " << swMaxY << " " << swMinY << std::endl;
+    //  reachableCaptureRegionHull = std::vector<cnoid::Vector3>();
+    //  return 3;
+    //}
+
+    std::vector<cnoid::Vector3> cpRegion = std::vector<cnoid::Vector3>{cnoid::Vector3(cpMaxX, cpMaxY, 0), cnoid::Vector3(cpMinX, cpMaxY, 0), cnoid::Vector3(cpMinX, cpMinY, 0), cnoid::Vector3(cpMaxX, cpMinY, 0)};
+    std::vector<cnoid::Vector3> swRegion = std::vector<cnoid::Vector3>{cnoid::Vector3(swMaxX, swMaxY, 0), cnoid::Vector3(swMinX, swMaxY, 0), cnoid::Vector3(swMinX, swMinY, 0), cnoid::Vector3(swMaxX, swMinY, 0)};
+    std::vector<cnoid::Vector3> intersectRegion = mathutil::calcIntersectConvexHull(cpRegion, swRegion);
+    if (intersectRegion.size() == 0) {
+      std::vector<cnoid::Vector3> tmp;
+      intersectRegion = std::vector<cnoid::Vector3>();
+      mathutil::calcNearestPointOfTwoHull(swRegion, cpRegion, intersectRegion, tmp);
+    }
+    for (int j=0; j<intersectRegion.size(); j++) {
+      cpList.emplace_back(cv::Point2f(intersectRegion[j][0], intersectRegion[j][1]));
     }
   }
   std::vector<cv::Point2f> hull;
@@ -1263,7 +1306,7 @@ double FootStepGenerator::calcReachableCaptureRegion(std::vector<cnoid::Vector3>
     reachableCaptureRegionHull[i] = supportPoseHorizontal * cnoid::Vector3(hull[i].x, hull[i].y, 0); //座標系戻す
   }
 
-  return 0;
+  return crErrorNum;
 }
 
 //ニュートン法によりminmaxtimeを計算
