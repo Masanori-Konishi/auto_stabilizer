@@ -90,12 +90,13 @@ void LegCoordsGenerator::calcLegCoords(const GaitParam& gaitParam, double dt, bo
   for(int leg=0;leg<NUM_LEGS;leg++){
     if(gaitParam.footstepNodesList[0].stopCurrentPosition[leg]){ // for early touch down. 今の位置に止める
       cnoid::Position tmp = genCoords[leg].value();
-      for(int i=0;i<3;i++){
-        double tmpvel = std::max(-gaitParam.maxSwingVel[i], std::min(gaitParam.maxSwingVel[i], (gaitParam.footstepNodesList[0].dstCoords[leg].translation()[i] - genCoords[leg].value().translation()[i]) / (gaitParam.footstepNodesList[0].remainTime + dt)));
-        tmp.translation()[i] += tmpvel * dt;
-      }
+      //for(int i=0;i<3;i++){
+      //  double tmpvel = std::max(-gaitParam.maxSwingVel[i], std::min(gaitParam.maxSwingVel[i], (gaitParam.footstepNodesList[0].dstCoords[leg].translation()[i] - genCoords[leg].value().translation()[i]) / (gaitParam.footstepNodesList[0].remainTime + dt)));
+      //  tmp.translation()[i] += tmpvel * dt;
+      //}
       //tmp.translation() = (genCoords[leg].value().translation() * (gaitParam.footstepNodesList[0].remainTime/*-dt*/) + gaitParam.footstepNodesList[0].dstCoords[leg].translation() * dt) / (gaitParam.footstepNodesList[0].remainTime + dt);
-      genCoords[leg].reset(tmp);
+      //genCoords[leg].reset(tmp);
+      genCoords[leg].reset(genCoords[leg].value());
       continue;
     }
     if(gaitParam.footstepNodesList[0].isSupportPhase[leg]) { // 支持脚
@@ -191,7 +192,8 @@ void LegCoordsGenerator::calcLegCoords(const GaitParam& gaitParam, double dt, bo
       nextCoords.translation() = goalPos;
       nextCoords.linear() = mathutil::calcMidRot(std::vector<cnoid::Matrix3>{antecedentCoords.linear(),dstCoords.linear()},
                                                  std::vector<double>{std::max(0.0,gaitParam.footstepNodesList[0].remainTime - gaitParam.delayTimeOffset - dt), dt}); // dstCoordsについたときにdstCoordsの傾きになるように線形補間
-      genCoords[leg].setGoal(nextCoords, goalVel, std::min(gaitParam.footstepNodesList[0].remainTime, gaitParam.delayTimeOffset));
+      //genCoords[leg].setGoal(nextCoords, goalVel, std::min(gaitParam.footstepNodesList[0].remainTime, gaitParam.delayTimeOffset));
+      genCoords[leg].setGoal(nextCoords, goalVel, std::max(dt, std::min(gaitParam.footstepNodesList[0].remainTime - 0.020/*遊脚が追従するまでの時間*/, gaitParam.delayTimeOffset)));
       genCoords[leg].interpolate(dt);
 
       //// phase transition
