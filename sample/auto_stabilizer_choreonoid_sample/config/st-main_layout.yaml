@@ -7,6 +7,7 @@ main:
       - { key: ast_tgtZmpOut, id: [0]}
       - { key: ast_actCogOut, id: [0]}
       - { key: ast_actDcmOut, id: [0]}
+      - { key: ast_actZmpOut, id: [0]}
       - { key: ast_dstLandingPosOut, id: [0]}
       - { key: ast_dstLandingPosOut, id: [3]}
       - { key: ast_genCoordsOut, id: [0]}
@@ -23,6 +24,7 @@ main:
       - { key: ast_tgtZmpOut, id: [1]}
       - { key: ast_actCogOut, id: [1]}
       - { key: ast_actDcmOut, id: [1]}
+      - { key: ast_actZmpOut, id: [1]}
       - { key: ast_dstLandingPosOut, id: [1]}
       - { key: ast_dstLandingPosOut, id: [4]}
     bottom_label:
