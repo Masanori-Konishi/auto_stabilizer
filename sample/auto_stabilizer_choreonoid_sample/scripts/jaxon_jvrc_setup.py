@@ -98,6 +98,8 @@ class JAXON_RED_HrpsysConfigurator(ChoreonoidHrpsysConfigurator):
             rtm.connectPorts(rtm.findRTC("ast").port("actCogOut"),rtm.findRTC("log").port("ast_actCogOut"))
             self.log_svc.add("TimedPoint3D","ast_actDcmOut")
             rtm.connectPorts(rtm.findRTC("ast").port("actDcmOut"),rtm.findRTC("log").port("ast_actDcmOut"))
+            self.log_svc.add("TimedPoint3D","ast_actZmpOut")
+            rtm.connectPorts(rtm.findRTC("ast").port("actZmpOut"),rtm.findRTC("log").port("ast_actZmpOut"))
             self.log_svc.add("TimedDoubleSeq","ast_dstLandingPosOut")
             rtm.connectPorts(rtm.findRTC("ast").port("dstLandingPosOut"),rtm.findRTC("log").port("ast_dstLandingPosOut"))
             self.log_svc.add("TimedDoubleSeq","ast_remainTimeOut")
