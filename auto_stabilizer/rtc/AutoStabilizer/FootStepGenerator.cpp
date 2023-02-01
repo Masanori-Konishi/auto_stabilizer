@@ -368,9 +368,10 @@ bool FootStepGenerator::goNextFootStepNodesList(const GaitParam& gaitParam, doub
   steppableHeightError = 0;
   for(int i=0;i<NUM_LEGS;i++){
     if(footstepNodesList[1].isSupportPhase[i] && gaitParam.elapsedTime > 0.1){
-      cnoid::Position targetCoords = footstepNodesList[0].dstCoords[i];
-      targetCoords.translation() = gaitParam.actEEPose[i].translation();
-      cnoid::Position transform = targetCoords * footstepNodesList[0].dstCoords[i].inverse(); // generate frame
+      //cnoid::Position targetCoords = footstepNodesList[0].dstCoords[i];
+      //targetCoords.translation() = gaitParam.actEEPose[i].translation();
+      //cnoid::Position transform = targetCoords * footstepNodesList[0].dstCoords[i].inverse(); // generate frame
+      cnoid::Position transform = gaitParam.genCoords[i].value() * footstepNodesList[0].dstCoords[i].inverse();
       if(transform.translation().norm() < this->contactModificationThreshold) transform = cnoid::Position::Identity(); // ズレが大きい場合のみずらす
       this->transformCurrentSupportSteps(i, footstepNodesList, 1, transform); // 遊脚になるまで、位置姿勢をその足の今の偏差にあわせてずらす.
     }
@@ -1461,12 +1462,12 @@ void FootStepGenerator::checkEarlyTouchDown(std::vector<GaitParam::FootStepNodes
          footstepNodesList[0].stopCurrentPosition[leg] == false){ // まだ地面についていない
 
         if(actLegWrenchFilter[leg].value()[2] > this->contactDetectionThreshold /*generate frame. ロボットが受ける力*/) {// 力センサの値が閾値以上
-          if(footstepNodesList[0].stopCurrentPosition[leg] == false) {
-            if (gaitParam.elapsedTime > 0.1){
-              footstepNodesList[0].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation();
-              footstepNodesList[1].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation();
-            }
-          }
+          //if(footstepNodesList[0].stopCurrentPosition[leg] == false) {
+          //  if (gaitParam.elapsedTime > 0.1){
+          //    footstepNodesList[0].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation();
+          //    footstepNodesList[1].dstCoords[leg].translation() = gaitParam.actEEPose[leg].translation();
+          //  }
+          //}
           footstepNodesList[0].stopCurrentPosition[leg] = true;
         }else if(footstepNodesList[0].remainTime <= dt && // remainTimeが0になる
                  footstepNodesList[0].touchVel[leg] > 0.0 && // touchVelが0ならいつまでもつかないのでgoaloffsetを適用しない

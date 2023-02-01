@@ -663,8 +663,14 @@ bool AutoStabilizer::execAutoStabilizer(const AutoStabilizer::ControlMode& mode,
   if(mode.isSyncToStopSTInit()){ // stopST直後の初回
     gaitParam.stOffsetRootRpy.setGoal(cnoid::Vector3::Zero(),mode.remainTime());
     for(int i=0;i<gaitParam.genRobot->numJoints();i++){
-      if(gaitParam.stServoPGainPercentage[i].getGoal() != 100.0) gaitParam.stServoPGainPercentage[i].setGoal(100.0, mode.remainTime());
-      if(gaitParam.stServoDGainPercentage[i].getGoal() != 100.0) gaitParam.stServoDGainPercentage[i].setGoal(100.0, mode.remainTime());
+      if (i == 0 || i == 6) {
+        gaitParam.stServoPGainPercentage[i].setGoal(5.0, mode.remainTime());
+        gaitParam.stServoDGainPercentage[i].setGoal(30.0, mode.remainTime());
+        std::cout << "stop ST servoPGain: 5.0, DGain: 30.0, id: " << i << std::endl;
+      } else {
+        if(gaitParam.stServoPGainPercentage[i].getGoal() != 100.0) gaitParam.stServoPGainPercentage[i].setGoal(100.0, mode.remainTime());
+        if(gaitParam.stServoDGainPercentage[i].getGoal() != 100.0) gaitParam.stServoDGainPercentage[i].setGoal(100.0, mode.remainTime());
+      }
     }
   }
   stabilizer.execStabilizer(gaitParam, dt, mode.isSTRunning(),
