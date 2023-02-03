@@ -154,7 +154,7 @@ public:
   cnoid::Vector3 genCogAcc;  // generate frame.  abcで計算された目標COM加速度
   std::vector<cnoid::Position> abcEETargetPose; // 要素数と順序はeeNameと同じ.generate frame. abcで計算された目標位置姿勢
   double delayTimeOffset = 0.15; // 0以上. 単位[s]. swing期は、(remainTime - delayTimeOffset)後にdstCoordsに到達するようなrectangle軌道を生成し、その軌道にdelayTimeOffset遅れで滑らかに追従するような軌道を生成する. remainTimeがこの値以下になると、DOWNPHASEになる.
-  cnoid::Vector3 maxSwingVel = cnoid::Vector3{1.5, 1.5, 0.1}; //最大速度
+  cnoid::Vector3 maxSwingVel = cnoid::Vector3{1.5, 1.5, 0.5}; //最大速度
 
   // Stabilizer
   cpp_filters::TwoPointInterpolator<cnoid::Vector3> stOffsetRootRpy = cpp_filters::TwoPointInterpolator<cnoid::Vector3>(cnoid::Vector3::Zero(),cnoid::Vector3::Zero(),cnoid::Vector3::Zero(),cpp_filters::LINEAR);; // gaitParam.footMidCoords座標系. stで計算された目標位置姿勢オフセット
