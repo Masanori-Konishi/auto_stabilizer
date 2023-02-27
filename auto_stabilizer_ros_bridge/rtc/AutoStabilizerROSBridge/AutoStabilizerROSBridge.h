@@ -25,6 +25,18 @@ protected:
   RTC::TimedDoubleSeq m_legOdom_;
   RTC::InPort <RTC::TimedDoubleSeq> m_legOdomIn_;
 
+  RTC::TimedPoint3D m_actZmp_;
+  RTC::InPort <RTC::TimedPoint3D> m_actZmpIn_;
+  ros::Publisher actZmp_pub_;
+
+  RTC::TimedPoint3D m_tgtZmp_;
+  RTC::InPort <RTC::TimedPoint3D> m_tgtZmpIn_;
+  ros::Publisher tgtZmp_pub_;
+
+  RTC::TimedPoint3D m_actCog_;
+  RTC::InPort <RTC::TimedPoint3D> m_actCogIn_;
+  ros::Publisher actCog_pub_;
+
   ros::Subscriber steppable_region_sub_;
   auto_stabilizer_msgs::TimedSteppableRegion m_steppableRegion_;
   RTC::OutPort <auto_stabilizer_msgs::TimedSteppableRegion> m_steppableRegionOut_;
