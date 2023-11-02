@@ -43,14 +43,16 @@ public:
         //landingDgain[i] = {10,10,10,10,5,5};
         //swingPgain[i] = {5,30,20,10,5,5};
         //swingDgain[i] = {10,30,20,20,30,30};
-        supportPgain[i] = {5,30,10,5,0.5,0.1};
-        supportDgain[i] = {70,70,50,10,1,3};
+        supportPgain[i] = {5,10,10,5,0.5,0.1};
+        supportDgain[i] = {70,30,20,10,1,3};
         landingSupportPgain[i] = {5,30,10,5,0.5,0.1};
         landingSupportDgain[i] = {70,70,50,10,1,3};
-        landingPgain[i] = {5,30,10,1,0.5,0.1};
-        landingDgain[i] = {70,70,50,10,1,3};
-        swingPgain[i] = {5,30,10,5,0.5,0.1};
-        swingDgain[i] = {70,70,50,10,1,3};
+        landingPgain[i] = {5,10,10,1,0.5,0.1};
+        landingDgain[i] = {70,30,20,10,1,3};
+        //swingPgain[i] = {5,30,10,5,0.5,0.1};
+        //swingDgain[i] = {70,70,50,10,1,3};
+        swingPgain[i] = {5,30,20,10,2,2};
+        swingDgain[i] = {70,70,50,10,5,5};
       }else{
         supportPgain[i].resize(jointPath.numJoints(), 100.0);
         supportDgain[i].resize(jointPath.numJoints(), 100.0);
