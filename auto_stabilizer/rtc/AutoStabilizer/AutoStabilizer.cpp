@@ -922,7 +922,8 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
   }
 
   // actEEPose actEEWrench (for wholebodymasterslave)
-  if(mode.isABCRunning()){
+  //if(mode.isABCRunning()){
+  if(true){
     for(int i=0;i<gaitParam.eeName.size();i++){
       ports.m_actEEPose_[i].tm = ports.m_qRef_.tm;
       ports.m_actEEPose_[i].data.position.x = gaitParam.actEEPose[i].translation()[0];
@@ -943,7 +944,8 @@ bool AutoStabilizer::writeOutPortData(AutoStabilizer::Ports& ports, const AutoSt
   }
 
   // only for logger. (IDLE時の出力や、モード遷移時の連続性はてきとうで良い)
-  if(mode.isABCRunning()){
+  //if(mode.isABCRunning()){
+  if(true){
     ports.m_genCog_.tm = ports.m_qRef_.tm;
     ports.m_genCog_.data.x = gaitParam.genCog[0];
     ports.m_genCog_.data.y = gaitParam.genCog[1];
@@ -1086,6 +1088,12 @@ RTC::ReturnCode_t AutoStabilizer::onExecute(RTC::UniqueId ec_id){
       this->fullbodyIKSolver_.reset();
     }
     AutoStabilizer::execAutoStabilizer(this->mode_, this->gaitParam_, this->dt_, this->footStepGenerator_, this->legCoordsGenerator_, this->refToGenFrameConverter_, this->actToGenFrameConverter_, this->impedanceController_, this->stabilizer_,this->externalForceHandler_, this->fullbodyIKSolver_, this->legManualController_, this->cmdVelGenerator_);
+  }
+  else{
+      // auto_stabilzerを起動していなくてもcogなどのログを取るためactToGenConverterのみ動かす
+      // FootOrigin座標系を用いてactRobotRawをgenerate frameに投影しactRobotとする
+      this->actToGenFrameConverter_.convertFrame(this->gaitParam_, this->dt_,
+                                      this->gaitParam_.actRobot, this->gaitParam_.actEEPose, this->gaitParam_.actEEWrench, this->gaitParam_.actCogVel, this->gaitParam_.actZmp);
   }
 
   AutoStabilizer::writeOutPortData(this->ports_, this->mode_, this->idleToAbcTransitionInterpolator_, this->dt_, this->gaitParam_);
